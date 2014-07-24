@@ -5,11 +5,12 @@ RUN yum update -y; yum clean all
 RUN yum install -y gcc-c++ glibc-headers openssl-devel readline libyaml-devel \
     zlib-devel gdbm-devel readline-devel ncurses-devel libffi-devel curl git \
     openssh-server redis libxml2-devel libxslt-devel libcurl-devel libicu-devel \
-    python postgresql nginx mariadb-server python python-docutils \
-    mariadb-devel postgresql-devel ruby ruby-devel && \
+    python postgresql nginx mariadb-server python python-docutils rubygems \
+    mariadb-devel postgresql-devel ruby ruby-devel patch \
+    rubygem-bundler which supervisor && \
     gem install --no-ri --no-rdoc bundler && \
     yum clean all
-
+RUN sed -i 's/Defaults    requiretty/#Defaults    requiretty/g' /etc/sudoers
 ADD assets/setup/ /app/setup/
 RUN chmod 755 /app/setup/install
 RUN /app/setup/install

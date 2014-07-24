@@ -8,7 +8,7 @@ SHELL_VERSION=1.9.6
 rm -rf /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
 
 # add git user
-adduser --disabled-login --gecos 'GitLab' git
+useradd -c 'GitLab' git
 passwd -d git
 
 rm -rf /home/git/.ssh
@@ -34,6 +34,8 @@ sudo -u git -H git clone -b v${GITLAB_VERSION} --depth 1 \
 cd /home/git/gitlab
 
 # copy default configurations
+mkdir -p /etc/nginx/sites-available
+mkdir -p /etc/nginx/sites-enabled
 cp lib/support/nginx/gitlab /etc/nginx/sites-available/gitlab
 sudo -u git -H cp config/gitlab.yml.example config/gitlab.yml
 sudo -u git -H cp config/resque.yml.example config/resque.yml
@@ -93,7 +95,7 @@ sed 's/UsePAM yes/UsePAM no/' -i /etc/ssh/sshd_config
 
 # configure supervisor to start sshd
 mkdir -p /var/run/sshd
-cat > /etc/supervisor/conf.d/sshd.conf <<EOF
+cat > /etc/supervisord.d/sshd.conf <<EOF
 [program:sshd]
 directory=/
 command=/usr/sbin/sshd -D
@@ -106,7 +108,7 @@ EOF
 
 # configure supervisord to start nginx
 echo "daemon off;" >> /etc/nginx/nginx.conf
-cat > /etc/supervisor/conf.d/nginx.conf <<EOF
+cat > /etc/supervisord.d/nginx.conf <<EOF
 [program:nginx]
 priority=20
 directory=/tmp
@@ -119,7 +121,7 @@ stderr_logfile=/var/log/supervisor/%(program_name)s.log
 EOF
 
 # configure supervisord to start mysql (manual)
-cat > /etc/supervisor/conf.d/mysqld.conf <<EOF
+cat > /etc/supervisord.d/mysqld.conf <<EOF
 [program:mysqld]
 priority=20
 directory=/tmp
@@ -132,8 +134,8 @@ stderr_logfile=/var/log/supervisor/%(program_name)s.log
 EOF
 
 # configure supervisord to start redis (manual)
-sed 's/daemonize yes/daemonize no/' -i /etc/redis/redis.conf
-cat > /etc/supervisor/conf.d/redis-server.conf <<EOF
+sed 's/daemonize yes/daemonize no/' -i /etc/redis.conf
+cat > /etc/supervisord.d/redis-server.conf <<EOF
 [program:redis-server]
 priority=20
 directory=/tmp
