@@ -130,7 +130,7 @@ Configure and start postgres.
 mkdir -p /opt/postgresql/data
 docker run --name=postgresql -d \
   -v /opt/postgresql/data:/var/lib/postgresql \
-  $USER/postgresql
+  $USER/postgres
 ```
 
 You should now have the postgresql server running. The password for the postgres user can be found in the "postgres_user.sh" script that accompanies the postgres Dockerfile.
@@ -139,7 +139,7 @@ Now, let's log in to the postgresql server and create a user and database for th
 
 ```bash
 POSTGRESQL_IP=$(docker inspect postgresql | grep IPAddres | awk -F'"' '{print $4}')
-psql -U postgres -h ${POSTGRESQL_IP}
+psql dockerdb -U dockeruser -h ${POSTGRESQL_IP}
 ```
 
 ```sql
@@ -151,7 +151,9 @@ GRANT ALL PRIVILEGES ON DATABASE gitlabhq_production to gitlab;
 Now that we have the database created for gitlab, let's install the database schema. This is done by starting the gitlab container with the **app:rake gitlab:setup** command.
 
 ```bash
-docker run --name=gitlab -it --rm --link postgresql:postgresql \
+docker run --name=gitlab -it --rm \
+  --link postgresql:postgresql \
+  --link redis:redisio
   -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
   -e 'DB_NAME=gitlabhq_production' \
   -v /opt/gitlab/data:/home/git/data \
@@ -166,6 +168,8 @@ Run the gitlab image
 mkdir /opt/gitlab/data
 docker run --name=gitlab -it --rm \
   --link redis:redisio --link postgresql:postgresql \
+  -p 10022:22 -p 10080:80 \
+  -e 'GITLAB_PORT=10080' -e 'GITLAB_SSH_PORT=10022' \
   -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
   -e 'DB_NAME=gitlabhq_production' \
   -v /opt/gitlab/data:/home/git/data \
@@ -176,7 +180,7 @@ __NOTE__: Please allow a couple of minutes for the GitLab application to start.
 
 Point your browser to `http://localhost:10080` and login using the default username and password:
 
-* username: admin@local.host
+* username: root
 * password: 5iveL!fe
 
 You should now have the GitLab application up and ready for testing. If you want to use this image in production the please read on.
