@@ -90,34 +90,86 @@ If you have enough RAM memory and a recent CPU the speed of GitLab is mainly lim
 
 # Installation
 
-Pull the latest version of the image from the docker index. This is the recommended method of installation as it is easier to update image in the future. These builds are performed by the **Docker Trusted Build** service.
+Build the gitlab image.
 
 ```bash
-docker pull sameersbn/gitlab:latest
-```
-
-Since version 6.3.0, the image builds are being tagged. You can now pull a particular version of gitlab by specifying the version number. For example,
-
-```bash
-docker pull sameersbn/gitlab:7.1.0
-```
-
-Alternately you can build the image yourself.
-
-```bash
-git clone https://github.com/sameersbn/docker-gitlab.git
+git clone https://github.com/jasonbrooks/docker-gitlab.git
 cd docker-gitlab
 docker build --tag="$USER/gitlab" .
+cd ..
+```
+
+Build a postgresql image.
+
+```bash
+git clone https://github.com/fedora-cloud/Fedora-Dockerfiles.git
+cd Fedora-Dockerfiles/postgres
+docker build --tag="$USER/postgres" .
+cd ../..
+```
+
+Build a redis image.
+
+```bash
+cd Fedora-Dockerfiles/redis
+docker build --tag="$USER/redis" .
+cd ../..
 ```
 
 # Quick Start
+
+Start the redis container
+
+```bash
+docker run --name=redis -d $USER/redis
+```
+
+Configure and start postgres.
+
+```bash
+mkdir -p /opt/postgresql/data
+docker run --name=postgresql -d \
+  -v /opt/postgresql/data:/var/lib/postgresql \
+  $USER/postgresql
+```
+
+You should now have the postgresql server running. The password for the postgres user can be found in the "postgres_user.sh" script that accompanies the postgres Dockerfile.
+
+Now, let's log in to the postgresql server and create a user and database for the GitLab application.
+
+```bash
+POSTGRESQL_IP=$(docker inspect postgresql | grep IPAddres | awk -F'"' '{print $4}')
+psql -U postgres -h ${POSTGRESQL_IP}
+```
+
+```sql
+CREATE ROLE gitlab with LOGIN CREATEDB PASSWORD 'password';
+CREATE DATABASE gitlabhq_production;
+GRANT ALL PRIVILEGES ON DATABASE gitlabhq_production to gitlab;
+```
+
+Now that we have the database created for gitlab, let's install the database schema. This is done by starting the gitlab container with the **app:rake gitlab:setup** command.
+
+```bash
+docker run --name=gitlab -it --rm --link postgresql:postgresql \
+  -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
+  -e 'DB_NAME=gitlabhq_production' \
+  -v /opt/gitlab/data:/home/git/data \
+  $USER/gitlab app:rake gitlab:setup
+```
+
+**NOTE: The above database setup is performed only for the first run**.
+
 Run the gitlab image
 
 ```bash
-docker run --name='gitlab' -it --rm \
--p 10022:22 -p 10080:80 \
--e 'GITLAB_PORT=10080' -e 'GITLAB_SSH_PORT=10022' \
-sameersbn/gitlab:7.1.0
+mkdir /opt/gitlab/data
+docker run --name=gitlab -it --rm \
+  --link redis:redisio --link postgresql:postgresql \
+  -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
+  -e 'DB_NAME=gitlabhq_production' \
+  -v /opt/gitlab/data:/home/git/data \
+  $USER/gitlab
 ```
 
 __NOTE__: Please allow a couple of minutes for the GitLab application to start.
@@ -128,6 +180,9 @@ Point your browser to `http://localhost:10080` and login using the default usern
 * password: 5iveL!fe
 
 You should now have the GitLab application up and ready for testing. If you want to use this image in production the please read on.
+
+
+**much to edit below**
 
 # Configuration
 
@@ -150,29 +205,15 @@ GitLab uses a database backend to store its data.
 
 ### MySQL
 
-#### Internal MySQL Server
-
-> **Warning**
+> **Note**
 >
-> The internal mysql server will soon be removed from the image.
+> Gitlab requires a database (postgres or mysql) and a redis server. Neither of these are provided with the gitlab image, so you'll need to run a database and redis in linked containers or through some other external means.
 
-> Please use a linked [mysql](#linking-to-mysql-container) or
-> [postgresql](#linking-to-postgresql-container) container instead.
+> Use a linked [mysql](#linking-to-mysql-container) or
+> [postgresql](#linking-to-postgresql-container) container.
 > Or else connect with an external [mysql](#external-mysql-server) or
 > [postgresql](#external-postgresql-server) server.
 
-> You've been warned.
-
-This docker image is configured to use a MySQL database backend. The database connection can be configured using environment variables. If not specified, the image will start a mysql server internally and use it. However in this case, the data stored in the mysql database will be lost if the container is stopped/deleted. To avoid this you should mount a volume at /var/lib/mysql.
-
-```bash
-mkdir /opt/gitlab/mysql
-docker run --name=gitlab -d \
-  -v /opt/gitlab/data:/home/git/data \
-  -v /opt/gitlab/mysql:/var/lib/mysql sameersbn/gitlab:7.1.0
-```
-
-This will make sure that the data stored in the database is not lost when the image is stopped and started again.
 
 #### External MySQL Server
 The image can be configured to use an external MySQL database instead of starting a MySQL server internally. The database configuration should be specified using environment variables while starting the GitLab image.
@@ -316,43 +357,6 @@ docker pull sameersbn/postgresql:latest
 
 For data persistence lets create a store for the postgresql and start the container.
 
-```bash
-mkdir -p /opt/postgresql/data
-docker run --name=postgresql -d \
-  -v /opt/postgresql/data:/var/lib/postgresql \
-  sameersbn/postgresql:latest
-```
-
-You should now have the postgresql server running. The password for the postgres user can be found in the logs of the postgresql image.
-
-```bash
-docker logs postgresql
-```
-
-Now, lets login to the postgresql server and create a user and database for the GitLab application.
-
-```bash
-POSTGRESQL_IP=$(docker inspect postgresql | grep IPAddres | awk -F'"' '{print $4}')
-psql -U postgres -h ${POSTGRESQL_IP}
-```
-
-```sql
-CREATE ROLE gitlab with LOGIN CREATEDB PASSWORD 'password';
-CREATE DATABASE gitlabhq_production;
-GRANT ALL PRIVILEGES ON DATABASE gitlabhq_production to gitlab;
-```
-
-Now that we have the database created for gitlab, lets install the database schema. This is done by starting the gitlab container with the **app:rake gitlab:setup** command.
-
-```bash
-docker run --name=gitlab -it --rm --link postgresql:postgresql \
-  -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
-  -e 'DB_NAME=gitlabhq_production' \
-  -v /opt/gitlab/data:/home/git/data \
-  sameersbn/gitlab:7.1.0 app:rake gitlab:setup
-```
-
-**NOTE: The above setup is performed only for the first run**.
 
 We are now ready to start the GitLab application.
 
@@ -366,16 +370,6 @@ docker run --name=gitlab -d --link postgresql:postgresql \
 
 ## Redis
 
-### Internal Redis Server
-
-> **Warning**
->
-> The internal redis server will soon be removed from the image.
-
-> Please use a linked [redis](#linking-to-redis-container) container
-> or a external [redis](#external-redis-server) server
-
-> You've been warned.
 
 GitLab uses the redis server for its key-value data store. The redis server connection details can be specified using environment variables. If not specified, the  starts a redis server internally, no additional configuration is required.
 
