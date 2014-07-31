@@ -4,9 +4,9 @@ MAINTAINER jbrooks@redhat.com
 RUN yum update -y; yum clean all
 RUN yum install -y gcc-c++ glibc-headers openssl-devel readline libyaml-devel \
     zlib-devel gdbm-devel readline-devel ncurses-devel libffi-devel curl git \
-    openssh-server redis libxml2-devel libxslt-devel libcurl-devel libicu-devel \
-    python postgresql nginx mariadb-server python python-docutils rubygems \
-    mariadb-devel postgresql-devel ruby ruby-devel patch \
+    openssh-server libxml2-devel libxslt-devel libcurl-devel libicu-devel \
+    python nginx redis python python-docutils rubygems \
+    community-mysql-devel postgresql-devel ruby ruby-devel patch \
     rubygem-bundler which supervisor && \
     gem install --no-ri --no-rdoc bundler && \
     yum clean all

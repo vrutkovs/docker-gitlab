@@ -73,6 +73,9 @@ sudo -u git -H bundle install --deployment --without development test aws
 # make sure everything in /home/git is owned by the git user
 chown -R git:git /home/git/
 
+# added to allow nginx to access gitlab.socket
+chmod o+x /home/git
+
 # install gitlab bootscript
 cp lib/support/init.d/gitlab /etc/init.d/gitlab
 chmod +x /etc/init.d/gitlab
@@ -95,7 +98,7 @@ sed 's/UsePAM yes/UsePAM no/' -i /etc/ssh/sshd_config
 
 # configure supervisor to start sshd
 mkdir -p /var/run/sshd
-cat > /etc/supervisord.d/sshd.conf <<EOF
+cat > /etc/supervisord.d/sshd.ini <<EOF
 [program:sshd]
 directory=/
 command=/usr/sbin/sshd -D
@@ -107,8 +110,47 @@ stderr_logfile=/var/log/supervisor/%(program_name)s_error.log
 EOF
 
 # configure supervisord to start nginx
-echo "daemon off;" >> /etc/nginx/nginx.conf
-cat > /etc/supervisord.d/nginx.conf <<EOF
+mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.orig
+cat > /etc/nginx/nginx.conf <<EOF
+user  nginx;
+worker_processes  1;
+daemon off;
+
+error_log  /var/log/nginx/error.log;
+
+pid        /run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    #keepalive_timeout  0;
+    keepalive_timeout  65;
+
+    #gzip  on;
+    
+    # Load modular configuration files from the /etc/nginx/conf.d directory.
+    # See http://nginx.org/en/docs/ngx_core_module.html#include
+    # for more information.
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
+EOF
+cat > /etc/supervisord.d/nginx.ini <<EOF
 [program:nginx]
 priority=20
 directory=/tmp
@@ -120,29 +162,3 @@ stdout_logfile=/var/log/supervisor/%(program_name)s.log
 stderr_logfile=/var/log/supervisor/%(program_name)s.log
 EOF
 
-# configure supervisord to start mysql (manual)
-cat > /etc/supervisord.d/mysqld.conf <<EOF
-[program:mysqld]
-priority=20
-directory=/tmp
-command=/usr/bin/mysqld_safe
-user=root
-autostart=false
-autorestart=true
-stdout_logfile=/var/log/supervisor/%(program_name)s.log
-stderr_logfile=/var/log/supervisor/%(program_name)s.log
-EOF
-
-# configure supervisord to start redis (manual)
-sed 's/daemonize yes/daemonize no/' -i /etc/redis.conf
-cat > /etc/supervisord.d/redis-server.conf <<EOF
-[program:redis-server]
-priority=20
-directory=/tmp
-command=/usr/bin/redis-server /etc/redis/redis.conf
-user=redis
-autostart=false
-autorestart=true
-stdout_logfile=/var/log/supervisor/%(program_name)s.log
-stderr_logfile=/var/log/supervisor/%(program_name)s.log
-EOF
