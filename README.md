@@ -96,5 +96,5 @@ Point your browser to `http://localhost:10080` and login using the default usern
 * username: root
 * password: 5iveL!fe
 
-You should now have the GitLab application up and ready for testing. If you want to use this image in production the please read on.
+You should now have the GitLab application up and ready for testing. If you want to use this image in production the please read on. *For now, check out readme-orig-overmatter.md, which includes info pending fedorification from the project I forked this from.*
 
