@@ -387,31 +387,34 @@ By default, when automated backups are enabled, backups are held for a period of
 
 # Upgrading
 
-GitLabHQ releases new versions on the 22nd of every month, bugfix releases immediately follow. I update this project almost immediately when a release is made (at least it has been the case so far). If you are using the image in production environments I recommend that you delay updates by a couple of days after the gitlab release, allowing some time for the dust to settle down.
+GitLabHQ releases new versions on the 22nd of every month, bugfix releases immediately follow. 
 
-To upgrade to newer gitlab releases, simply follow this 4 step upgrade procedure.
+To upgrade to newer gitlab releases, follow this 5 step upgrade procedure.
 
-- **Step 1**: Update the docker image.
+- **Step 1**: Rev the "GITLAB_VERSION" value in the file `assets/setup/install`, or fetch updates from this repo to pick up this edit.
+
+- **Step 2**: Rebuild your docker-gitlab image.
 
 ```bash
-docker pull $USER/gitlab
+cd docker-gitlab
+docker build --tag="$USER/gitlab" .
 ```
 
-- **Step 2**: Stop and remove the currently running image
+- **Step 3**: Stop and remove the currently running image
 
 ```bash
 docker stop gitlab
 docker rm gitlab
 ```
 
-- **Step 3**: Backup the application data.
+- **Step 4**: Backup the application data.
 
 ```bash
 docker run --name=gitlab -it --rm [OPTIONS] \
   $USER/gitlab app:rake gitlab:backup:create
 ```
 
-- **Step 4**: Start the image
+- **Step 5**: Start the image
 
 ```bash
 docker run --name=gitlab -d [OPTIONS] $USER/gitlab
