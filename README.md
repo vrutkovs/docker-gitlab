@@ -41,6 +41,7 @@ Configure and start postgres.
 
 ```bash
 mkdir -p /opt/postgresql/data
+chcon -Rt svirt_sandbox_file_t /opt/postgresql/data
 docker run --name=postgresql -d \
   -v /opt/postgresql/data:/var/lib/postgresql \
   $USER/postgres
@@ -79,6 +80,7 @@ Run the gitlab image
 
 ```bash
 mkdir /opt/gitlab/data
+chcon -Rt svirt_sandbox_file_t /opt/gitlab/data
 docker run --name=gitlab -it --rm \
   --link redis:redisio --link postgresql:postgresql \
   -p 10022:22 -p 10080:80 \
