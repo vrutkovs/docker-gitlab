@@ -29,6 +29,13 @@ docker build --tag="$USER/redis" .
 cd ../..
 ```
 
+Build a data container.
+
+```bash
+docker run --name=gitlab-data -v /var/lib/postgresql \
+  -v /home/git/data busybox true
+```
+
 ## Startup
 
 Start the redis container
@@ -40,11 +47,8 @@ docker run --name=redis -d $USER/redis
 Configure and start postgres.
 
 ```bash
-mkdir -p /opt/postgresql/data
-chcon -Rt svirt_sandbox_file_t /opt/postgresql/data
 docker run --name=postgresql -d \
-  -v /opt/postgresql/data:/var/lib/postgresql \
-  $USER/postgres
+  --volumes-from=gitlab-data $USER/postgres
 ```
 
 You should now have the postgresql server running. The password for the postgres user can be found in the "postgres_user.sh" script that accompanies the postgres Dockerfile.
@@ -67,10 +71,10 @@ Now that we have the database created for gitlab, let's install the database sch
 ```bash
 docker run --name=gitlab -it --rm \
   --link postgresql:postgresql \
-  --link redis:redisio
+  --link redis:redisio \
   -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
   -e 'DB_NAME=gitlabhq_production' \
-  -v /opt/gitlab/data:/home/git/data \
+  --volumes-from=gitlab-data \ 
   $USER/gitlab app:rake gitlab:setup
 ```
 
@@ -87,8 +91,7 @@ docker run --name=gitlab -it --rm \
   -e 'GITLAB_PORT=10080' -e 'GITLAB_SSH_PORT=10022' \
   -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
   -e 'DB_NAME=gitlabhq_production' \
-  -v /opt/gitlab/data:/home/git/data \
-  $USER/gitlab
+  --volumes-from=gitlab-data $USER/gitlab
 ```
 
 __NOTE__: Please allow a couple of minutes for the GitLab application to start.
