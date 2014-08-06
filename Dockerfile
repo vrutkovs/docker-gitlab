@@ -7,7 +7,7 @@ RUN yum install -y gcc-c++ glibc-headers openssl-devel readline libyaml-devel \
     openssh-server libxml2-devel libxslt-devel libcurl-devel libicu-devel \
     python nginx redis python python-docutils rubygems \
     community-mysql-devel postgresql-devel ruby ruby-devel patch \
-    rubygem-bundler which supervisor && \
+    rubygem-bundler which supervisor iptables && \
     gem install --no-ri --no-rdoc bundler && \
     yum clean all
 RUN sed -i 's/Defaults    requiretty/#Defaults    requiretty/g' /etc/sudoers
