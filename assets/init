@@ -92,8 +92,8 @@ elif [ -n "${POSTGRESQL_PORT_5432_TCP_ADDR}" ]; then
 	DB_PORT=${DB_PORT:-${POSTGRESQL_PORT_5432_TCP_PORT}}
 fi
 
-# fallback to using the internal mysql server
-DB_TYPE=${DB_TYPE:-mysql}
+# fallback to expecting a postgres server at localhost 
+DB_TYPE=${DB_TYPE:-postgres}
 DB_HOST=${DB_HOST:-localhost}
 
 # use default port number if it is still not set
@@ -207,44 +207,6 @@ if [ -f "${SSL_CERTIFICATE_PATH}" -o -f "${CA_CERTIFICATES_PATH}" ]; then
 	[ -f "${CA_CERTIFICATES_PATH}" ] && \
 		cp "${CA_CERTIFICATES_PATH}" /usr/local/share/ca-certificates/ca.crt
 	update-ca-certificates --fresh >/dev/null 2>&1
-fi
-
-# start mysql server if ${DB_HOST} is localhost
-if [ "${DB_HOST}" == "localhost" ]; then
-	if [ "${DB_TYPE}" == "postgres" ]; then
-		echo "DB_TYPE 'postgres' is not supported internally. Please provide DB_HOST."
-		exit 1
-	fi
-
-	# fix permissions and ownership of /var/lib/mysql
-	chown -R mysql:mysql /var/lib/mysql
-	chmod 700 /var/lib/mysql
-
-	# initialize MySQL data directory
-	if [ ! -d /var/lib/mysql/mysql ]; then
-		mysql_install_db --user=mysql
-	fi
-
-	echo "Starting mysql server..."
-	supervisorctl start mysqld >/dev/null
-
-	# wait for mysql server to start (max 120 seconds)
-	timeout=120
-	while ! mysqladmin -uroot ${DB_PASS:+-p$DB_PASS} status >/dev/null 2>&1
-	do
-		timeout=$(expr $timeout - 1)
-		if [ $timeout -eq 0 ]; then
-			echo "Failed to start mysql server"
-			exit 1
-		fi
-		sleep 1
-	done
-
-	if ! echo "USE ${DB_NAME}" | mysql -uroot ${DB_PASS:+-p$DB_PASS} >/dev/null 2>&1; then
-		DB_INIT="yes"
-		echo "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` DEFAULT CHARACTER SET \`utf8\` COLLATE \`utf8_unicode_ci\`;" | mysql -uroot ${DB_PASS:+-p$DB_PASS}
-		echo "GRANT SELECT, LOCK TABLES, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER ON \`${DB_NAME}\`.* TO 'root'@'localhost';" | mysql -uroot ${DB_PASS:+-p$DB_PASS}
-	fi
 fi
 
 if [ "${REDIS_HOST}" == "localhost" ]; then
