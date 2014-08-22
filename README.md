@@ -1,6 +1,5 @@
 # Quick Start
 
-
 ## Installation
 
 Build the gitlab image.
@@ -288,6 +287,52 @@ docker run --name=gitlab -d \
 
 When you change the sub URI path, you need to recompile all precompiled assets. This can be done with either deleting tmp/cache/VERSION file under data store, or just `rm -Rf /PATH/TO/DATA_STORE/tmp`. After cleaning up cache files, restart the container.
 
+### OmniAuth Integration
+
+GitLab leverages OmniAuth to allow users to sign in using Twitter, GitHub, and other popular services. Configuring OmniAuth does not prevent standard GitLab authentication or LDAP (if configured) from continuing to work. Users can choose to sign in using any of the configured mechanisms.
+
+Refer to the GitLab [documentation](http://doc.gitlab.com/ce/integration/omniauth.html) for additional information.
+
+#### Google
+
+To enable the Google OAuth2 OmniAuth provider you must register your application with Google. Google will generate a client ID and secret key for you to use. Please refer to the GitLab [documentation](http://doc.gitlab.com/ce/integration/google.html) for the procedure to generate the client ID and secret key with google.
+
+Once you have the client ID and secret keys generated, configure them using the `OAUTH_GOOGLE_API_KEY` and `OAUTH_GOOGLE_APP_SECRET` environment variables respectively.
+
+For example, if your client ID is `xxx.apps.googleusercontent.com` and client secret key is `yyy`, then adding `-e 'OAUTH_GOOGLE_API_KEY=xxx.apps.googleusercontent.com' -e 'OAUTH_GOOGLE_APP_SECRET=yyy'` to the docker run command enables support for Google OAuth.
+
+#### Twitter
+
+To enable the Twitter OAuth2 OmniAuth provider you must register your application with Twitter. Twitter will generate a API key and secret for you to use. Please refer to the GitLab [documentation](http://doc.gitlab.com/ce/integration/twitter.html) for the procedure to generate the API key and secret with twitter.
+
+Once you have the API key and secret generated, configure them using the `OAUTH_TWITTER_API_KEY` and `OAUTH_TWITTER_APP_SECRET` environment variables respectively.
+
+For example, if your API key is `xxx` and the API secret key is `yyy`, then adding `-e 'OAUTH_TWITTER_API_KEY=xxx' -e 'OAUTH_TWITTER_APP_SECRET=yyy'` to the docker run command enables support for Twitter OAuth.
+
+#### GitHub
+
+To enable the GitHub OAuth2 OmniAuth provider you must register your application with GitHub. GitHub will generate a Client ID and secret for you to use. Please refer to the GitLab [documentation](http://doc.gitlab.com/ce/integration/github.html) for the procedure to generate the Client ID and secret with github.
+
+Once you have the Client ID and secret generated, configure them using the `OAUTH_GITHUB_API_KEY` and `OAUTH_GITHUB_APP_SECRET` environment variables respectively.
+
+For example, if your Client ID is `xxx` and the Client secret is `yyy`, then adding `-e 'OAUTH_GITHUB_API_KEY=xxx' -e 'OAUTH_GITHUB_APP_SECRET=yyy'` to the docker run command enables support for GitHub OAuth.
+
+### External Issue Trackers
+
+GitLab can be configured to use third party issue trackers such as Redmine and Atlassian Jira. Use of third party issue trackers have to be configured on a per project basis from the project settings page. This means that the GitLab's issue tracker is always the default tracker unless specified otherwise.
+
+#### Redmine
+
+Support for issue tracking using Redmine can be added by specifying the complete URL of the Redmine web server in the `REDMINE_URL` configuration option.
+
+For example, if your Redmine server is accessible at `https://redmine.example.com`, then adding `-e 'REDMINE_URL=https://redmine.example.com'` to the docker run command enables Redmine support in GitLab
+
+#### Jira
+
+Support for issue tracking using Jira can be added by specifying the complete URL of the Jira web server in the `JIRA_URL` configuration option.
+
+For example, if your Jira server is accessible at `https://jira.example.com`, then adding `-e 'JIRA_URL=https://jira.example.com'` to the docker run command enables Jira support in GitLab
+
 ### Available Configuration Parameters
 
 *Please refer the docker run command options for the `--env-file` flag where you can specify all required environment variables in a single file. This will save you from writing a potentially long docker run command.*
@@ -343,6 +388,16 @@ Below is the complete list of available options that can be used to customize yo
 - **LDAP_ALLOW_USERNAME_OR_EMAIL_LOGIN**: If enabled, GitLab will ignore everything after the first '@' in the LDAP username submitted by the user on login. Defaults to false if LDAP_UID is userPrincipalName, else true.
 - **LDAP_BASE**: Base where we can search for users. No default.
 - **LDAP_USER_FILTER**: Filter LDAP users. No default.
+- **OAUTH_ALLOW_SSO**: This allows users to login without having a user account first. User accounts will be created automatically when authentication was successful. Defaults to false.
+- **OAUTH_BLOCK_AUTO_CREATED_USERS**: Locks down those users until they have been cleared by the admin. Defaults to true.
+- **OAUTH_GOOGLE_API_KEY**: Google App Client ID. No defaults.
+- **OAUTH_GOOGLE_APP_SECRET**: Google App Client Secret. No defaults.
+- **OAUTH_TWITTER_API_KEY**: Twitter App API key. No defaults.
+- **OAUTH_TWITTER_APP_SECRET**: Twitter App API secret. No defaults.
+- **OAUTH_GITHUB_API_KEY**: GitHub App Client ID. No defaults.
+- **OAUTH_GITHUB_APP_SECRET**: GitHub App Client secret. No defaults.
+- **REDMINE_URL**: Location of the redmine server, e.g. `-e 'REDMINE_URL=https://redmine.example.com'`. No defaults.
+- **JIRA_URL**: Location of the jira server, e.g. `-e 'JIRA_URL=https://jira.example.com'`. No defaults.
 
 # Maintenance
 
@@ -389,6 +444,28 @@ The image can be configured to automatically take backups on a daily or monthly 
 Daily backups are created at 4 am (UTC) everyday, while monthly backups are created on the 1st of every month at the same time as the daily backups.
 
 By default, when automated backups are enabled, backups are held for a period of 7 days. While when automated backups are disabled, the backups are held for an infinite period of time. This can behaviour can be configured via the GITLAB_BACKUP_EXPIRY option.
+
+## Shell Access
+
+For debugging and maintenance purposes you may want access the container shell. Since the container does not allow interactive login over the SSH protocol, you can use the [nsenter](http://man7.org/linux/man-pages/man1/nsenter.1.html) linux tool (part of the util-linux package) to access the container shell.
+
+Some linux distros (e.g. ubuntu) use older versions of the util-linux which do not include the `nsenter` tool. To get around this @jpetazzo has created a nice docker image that allows you to install the `nsenter` utility and a helper script named `docker-enter` on these distros.
+
+To install the nsenter tool on your host execute the following command.
+
+```bash
+docker run --rm -v /usr/local/bin:/target jpetazzo/nsenter
+```
+
+Now you can access the container shell using the command
+
+```bash
+sudo docker-enter gitlab
+```
+
+For more information refer https://github.com/jpetazzo/nsenter
+
+Another tool named `nsinit` can also be used for the same purpose. Please refer https://jpetazzo.github.io/2014/03/23/lxc-attach-nsinit-nsenter-docker-0-9/ for more information.
 
 # Upgrading
 
@@ -451,4 +528,5 @@ For a complete list of available rake tasks please refer https://github.com/gitl
   * http://wiki.nginx.org/HttpSslModule
   * https://raymii.org/s/tutorials/Strong_SSL_Security_On_nginx.html
   * https://github.com/gitlabhq/gitlab-recipes/blob/master/web-server/nginx/gitlab-ssl
-
+  * https://github.com/jpetazzo/nsenter
+  * https://jpetazzo.github.io/2014/03/23/lxc-attach-nsinit-nsenter-docker-0-9/

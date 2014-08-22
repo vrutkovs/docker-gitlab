@@ -1,5 +1,17 @@
 # Changelog
 
+**7.2.0**
+- upgrade to gitlab-ce 7.2.0
+- disable UsePrivilegeSeparation in sshd configuration, fixes #122
+- added OAUTH_BLOCK_AUTO_CREATED_USERS configuration option
+- added OAUTH_ALLOW_SSO configuration option
+- added github oauth configuration support
+- added twitter oauth configuration support
+- added google oauth configuration support
+- added support for jira issue tracker
+- added support for redmine issue tracker
+- update to gitlab-shell 1.9.7
+
 **7.1.1**
 - removed "add_header X-Frame-Options DENY" setting from the nginx config. fixes #110
 - upgrade to gitlab-ce 7.1.1
