@@ -8,24 +8,22 @@ Build the gitlab image.
 git clone https://github.com/jasonbrooks/docker-gitlab.git
 cd docker-gitlab
 docker build --tag="$USER/gitlab" .
-cd ..
 ```
 
 Build a postgresql image.
 
 ```bash
-git clone https://github.com/fedora-cloud/Fedora-Dockerfiles.git
-cd Fedora-Dockerfiles/postgres
+cd postgres
 docker build --tag="$USER/postgres" .
-cd ../..
+cd ..
 ```
 
 Build a redis image.
 
 ```bash
-cd Fedora-Dockerfiles/redis
+cd redis
 docker build --tag="$USER/redis" .
-cd ../..
+cd ..
 ```
 
 Build a data container.
