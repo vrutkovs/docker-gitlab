@@ -10,12 +10,24 @@ cd docker-gitlab
 docker build --tag="$USER/gitlab" .
 ```
 
+Build a gitlab data container.
+
+```bash
+docker run --name=gitlab-data -v /home/git/data busybox true
+```
+
 Build a postgresql image.
 
 ```bash
 cd postgres
 docker build --tag="$USER/postgres" .
 cd ..
+```
+
+Build a postgresql data container.
+
+```bash
+docker run --name=postgres-data -v /var/lib/postgresql busybox true
 ```
 
 Build a redis image.
@@ -26,12 +38,6 @@ docker build --tag="$USER/redis" .
 cd ..
 ```
 
-Build a data container.
-
-```bash
-docker run --name=gitlab-data -v /var/lib/postgresql \
-  -v /home/git/data busybox true
-```
 
 ## Startup
 
@@ -71,8 +77,7 @@ docker run --name=gitlab -it --rm \
   --link redis:redisio \
   -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
   -e 'DB_NAME=gitlabhq_production' \
-  --volumes-from=gitlab-data \ 
-  $USER/gitlab app:rake gitlab:setup
+  --volumes-from=gitlab-data $USER/gitlab app:rake gitlab:setup
 ```
 
 **NOTE: The above database setup is performed only for the first run**.
@@ -80,8 +85,6 @@ docker run --name=gitlab -it --rm \
 Run the gitlab image
 
 ```bash
-mkdir /opt/gitlab/data
-chcon -Rt svirt_sandbox_file_t /opt/gitlab/data
 docker run --name=gitlab -it --rm \
   --link redis:redisio --link postgresql:postgresql \
   -p 10022:22 -p 10080:80 \
