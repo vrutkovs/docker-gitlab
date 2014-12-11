@@ -5,10 +5,8 @@ RUN yum update -y; yum clean all
 RUN yum install -y supervisor logrotate nginx openssh-server \
     git postgresql ruby rubygems python python-docutils \
     community-mysql-devel libpqxx zlib libyaml gdbm readline \
-    ncurses libffi libxml2 libxslt libcurl libicu
-
-    gem install --no-ri --no-rdoc bundler && \
-    yum clean all
+    ncurses libffi libxml2 libxslt libcurl libicu rubygem-bundler \
+    which; yum clean all
 RUN sed -i 's/Defaults    requiretty/#Defaults    requiretty/g' /etc/sudoers
 ADD assets/setup/ /app/setup/
 RUN chmod 755 /app/setup/install

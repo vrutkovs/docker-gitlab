@@ -17,7 +17,7 @@ GEM_CACHE_DIR="${SETUP_DIR}/cache"
 yum update
 
 # install build dependencies for gem installation
-yum install -y gcc gcc-c++ make patch pkg-config cmake \
+yum install -y gcc gcc-c++ make patch pkgconfig cmake \
   glibc-devel ruby-devel community-mysql-devel postgresql-devel \
   zlib-devel libyaml-devel openssl-devel gdbm-devel readline-devel \
   ncurses-devel libffi-devel libxml2-devel libxslt-devel \
@@ -115,14 +115,14 @@ sed 's/UsePrivilegeSeparation yes/UsePrivilegeSeparation no/' -i /etc/ssh/sshd_c
 echo "UseDNS no" >> /etc/ssh/sshd_config
 
 # move supervisord.log file to ${GITLAB_LOG_DIR}/supervisor/
-sed 's|^logfile=.*|logfile='"${GITLAB_LOG_DIR}"'/supervisor/supervisord.log ;|' -i /etc/supervisor/supervisord.conf
+sed 's|^logfile=.*|logfile='"${GITLAB_LOG_DIR}"'/supervisor/supervisord.log ;|' -i /etc/supervisord.conf
 
 # move nginx logs to ${GITLAB_LOG_DIR}/nginx
 sed 's|access_log /var/log/nginx/access.log;|access_log '"${GITLAB_LOG_DIR}"'/nginx/access.log;|' -i /etc/nginx/nginx.conf
 sed 's|error_log /var/log/nginx/error.log;|error_log '"${GITLAB_LOG_DIR}"'/nginx/error.log;|' -i /etc/nginx/nginx.conf
 
 # configure supervisord log rotation
-cat > /etc/logrotate.d/supervisord <<EOF
+cat > /etc/logrotate.d/supervisor <<EOF
 ${GITLAB_LOG_DIR}/supervisor/*.log {
   weekly
   missingok
@@ -174,7 +174,7 @@ ${GITLAB_LOG_DIR}/nginx/*.log {
 EOF
 
 # configure supervisord to start unicorn
-cat > /etc/supervisor/conf.d/unicorn.conf <<EOF
+cat > /etc/supervisord.d/unicorn.conf <<EOF
 [program:unicorn]
 priority=10
 directory=${GITLAB_INSTALL_DIR}
@@ -189,7 +189,7 @@ stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
 # configure supervisord to start sidekiq
-cat > /etc/supervisor/conf.d/sidekiq.conf <<EOF
+cat > /etc/supervisord.d/sidekiq.conf <<EOF
 [program:sidekiq]
 priority=10
 directory=${GITLAB_INSTALL_DIR}
@@ -226,7 +226,7 @@ stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
 # configure supervisord to start nginx
-cat > /etc/supervisor/conf.d/nginx.conf <<EOF
+cat > /etc/supervisord.d/nginx.conf <<EOF
 [program:nginx]
 priority=20
 directory=/tmp
@@ -239,7 +239,7 @@ stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
 # configure supervisord to start crond
-cat > /etc/supervisor/conf.d/cron.conf <<EOF
+cat > /etc/supervisord.d/cron.conf <<EOF
 [program:cron]
 priority=20
 directory=/tmp
@@ -252,7 +252,7 @@ stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
 # purge build dependencies
-yum remove -y gcc gcc-c++ make patch pkg-config cmake \
+yum remove -y gcc gcc-c++ patch cmake \
   glibc-devel ruby-devel community-mysql-devel postgresql-devel \
   zlib-devel libyaml-devel openssl-devel gdbm-devel readline-devel \
   ncurses-devel libffi-devel libxml2-devel libxslt-devel \
