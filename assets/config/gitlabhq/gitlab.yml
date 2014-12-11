@@ -3,9 +3,11 @@
 # # # # # # # # # # # # # # # # # #
 #
 # How to use:
-# 1. copy file as gitlab.yml
-# 2. Replace gitlab -> host with your domain
-# 3. Replace gitlab -> email_from
+# 1. Copy file as gitlab.yml
+# 2. Update gitlab -> host with your fully qualified domain name
+# 3. Update gitlab -> email_from
+# 4. If you installed Git from source, change git -> bin_path to /usr/local/bin/git
+# 5. Review this configuration file for other settings you may want to adjust
 
 production: &base
   #
@@ -22,7 +24,7 @@ production: &base
     # Uncommment this line below if your ssh host is different from HTTP/HTTPS one
     # (you'd obviously need to replace ssh.host_example.com with your own host).
     # Otherwise, ssh host will be set to the `host:` value above
-    # ssh_host: ssh.host_example.com
+    ssh_host: "{{GITLAB_SSH_HOST}}"
 
     # WARNING: See config/application.rb under "Relative url support" for the list of
     # other files that need to be changed for relative url support
@@ -31,7 +33,14 @@ production: &base
     # Uncomment and customize if you can't use the default user to run GitLab (default: 'git')
     # user: git
 
+    ## Date & Time settings
+    # Uncomment and customize if you want to change the default time zone of GitLab application.
+    # To see all available zones, run `bundle exec rake time:zones:all`
+    time_zone: "{{GITLAB_TIMEZONE}}"
+
     ## Email settings
+    # Uncomment and set to false if you need to disable email sending from GitLab (default: true)
+    email_enabled: {{GITLAB_EMAIL_ENABLED}}
     # Email address used in the "From" field in mails sent by GitLab
     email_from: "{{GITLAB_EMAIL}}"
 
@@ -39,8 +48,8 @@ production: &base
 
     ## User settings
     default_projects_limit: {{GITLAB_PROJECTS_LIMIT}}
-    # default_can_create_group: false  # default: true
-    # username_changing_enabled: false # default: true - User can change her username/namespace
+    default_can_create_group: {{GITLAB_CREATE_GROUP}} # default: true - User can create groups
+    username_changing_enabled: {{GITLAB_USERNAME_CHANGE}} # default: true - User can change her username/namespace
     ## Default theme
     ##   BASIC  = 1
     ##   MARS   = 2
@@ -78,6 +87,10 @@ production: &base
       snippets: false
       visibility_level: "{{GITLAB_PROJECTS_VISIBILITY}}"  # can be "private" | "internal" | "public"
 
+    ## Webhook settings
+    # Number of seconds to wait for HTTP response after sending webhook HTTP POST request (default: 10)
+    webhook_timeout: {{GITLAB_WEBHOOK_TIMEOUT}}
+
     ## Repository downloads directory
     # When a user clicks e.g. 'Download zip' on a project, a temporary zip file is created in the following directory.
     # The default is 'tmp/repositories' relative to the root of the Rails app.
@@ -113,8 +126,9 @@ production: &base
       new_issue_url: "{{JIRA_URL}}/secure/CreateIssue.jspa"
 
   ## Gravatar
+  ## For Libravatar see: http://doc.gitlab.com/ce/customization/libravatar.html
   gravatar:
-    enabled: true                 # Use user avatar image from Gravatar.com (default: true)
+    enabled: {{GITLAB_GRAVATAR_ENABLED}}
     # gravatar urls: possible placeholders: %{hash} %{size} %{email}
     # plain_url: "http://..."     # default: http://www.gravatar.com/avatar/%{hash}?s=%{size}&d=identicon
     # ssl_url:   "https://..."    # default: https://secure.gravatar.com/avatar/%{hash}?s=%{size}&d=identicon
@@ -128,35 +142,61 @@ production: &base
   #   bundle exec rake gitlab:ldap:check RAILS_ENV=production
   ldap:
     enabled: {{LDAP_ENABLED}}
-    host: "{{LDAP_HOST}}"
-    port: {{LDAP_PORT}}
-    uid: "{{LDAP_UID}}"
-    method: "{{LDAP_METHOD}}" # "tls" or "ssl" or "plain"
-    bind_dn: "{{LDAP_BIND_DN}}"
-    password: "{{LDAP_PASS}}"
-    # If allow_username_or_email_login is enabled, GitLab will ignore everything
-    # after the first '@' in the LDAP username submitted by the user on login.
-    #
-    # Example:
-    # - the user enters 'jane.doe@example.com' and 'p@ssw0rd' as LDAP credentials;
-    # - GitLab queries the LDAP server with 'jane.doe' and 'p@ssw0rd'.
-    #
-    # If you are using "uid: 'userPrincipalName'" on ActiveDirectory you need to
-    # disable this setting, because the userPrincipalName contains an '@'.
-    allow_username_or_email_login: {{LDAP_ALLOW_USERNAME_OR_EMAIL_LOGIN}}
+    servers:
+      main: # 'main' is the GitLab 'provider ID' of this LDAP server
+        ## label
+        #
+        # A human-friendly name for your LDAP server. It is OK to change the label later,
+        # for instance if you find out it is too large to fit on the web page.
+        #
+        # Example: 'Paris' or 'Acme, Ltd.'
+        label: 'LDAP'
 
-    # Base where we can search for users
-    #
-    #   Ex. ou=People,dc=gitlab,dc=example
-    #
-    base: "{{LDAP_BASE}}"
+        host: "{{LDAP_HOST}}"
+        port: {{LDAP_PORT}}
+        uid: "{{LDAP_UID}}"
+        method: "{{LDAP_METHOD}}" # "tls" or "ssl" or "plain"
+        bind_dn: "{{LDAP_BIND_DN}}"
+        password: "{{LDAP_PASS}}"
 
-    # Filter LDAP users
-    #
-    #   Format: RFC 4515
-    #   Ex. (employeeType=developer)
-    #
-    user_filter: "{{LDAP_USER_FILTER}}"
+        # This setting specifies if LDAP server is Active Directory LDAP server.
+        # For non AD servers it skips the AD specific queries.
+        # If your LDAP server is not AD, set this to false.
+        active_directory: {{LDAP_ACTIVE_DIRECTORY}}
+
+        # If allow_username_or_email_login is enabled, GitLab will ignore everything
+        # after the first '@' in the LDAP username submitted by the user on login.
+        #
+        # Example:
+        # - the user enters 'jane.doe@example.com' and 'p@ssw0rd' as LDAP credentials;
+        # - GitLab queries the LDAP server with 'jane.doe' and 'p@ssw0rd'.
+        #
+        # If you are using "uid: 'userPrincipalName'" on ActiveDirectory you need to
+        # disable this setting, because the userPrincipalName contains an '@'.
+        allow_username_or_email_login: {{LDAP_ALLOW_USERNAME_OR_EMAIL_LOGIN}}
+
+        # Base where we can search for users
+        #
+        #   Ex. ou=People,dc=gitlab,dc=example
+        #
+        base: "{{LDAP_BASE}}"
+
+        # Filter LDAP users
+        #
+        #   Format: RFC 4515 http://tools.ietf.org/search/rfc4515
+        #   Ex. (employeeType=developer)
+        #
+        #   Note: GitLab does not support omniauth-ldap's custom filter syntax.
+        #
+        user_filter: "{{LDAP_USER_FILTER}}"
+
+      # GitLab EE only: add more LDAP servers
+      # Choose an ID made of a-z and 0-9 . This ID will be stored in the database
+      # so that GitLab can remember which LDAP server a user belongs to.
+      # uswest2:
+      #   label:
+      #   host:
+      #   ....
 
 
   ## OmniAuth settings
@@ -181,7 +221,7 @@ production: &base
     providers:
       - { name: 'google_oauth2', app_id: '{{OAUTH_GOOGLE_API_KEY}}',
           app_secret: '{{OAUTH_GOOGLE_APP_SECRET}}',
-          args: { access_type: 'offline', approval_prompt: '{{OAUTH_GOOGLE_APPROVAL_PROMPT}}' } }
+          args: { access_type: 'offline', approval_prompt: '{{OAUTH_GOOGLE_APPROVAL_PROMPT}}', hd: '{{OAUTH_GOOGLE_RESTRICT_DOMAIN}}' } }
       - { name: 'twitter', app_id: '{{OAUTH_TWITTER_API_KEY}}',
           app_secret: '{{OAUTH_TWITTER_APP_SECRET}}'}
       - { name: 'github', app_id: '{{OAUTH_GITHUB_API_KEY}}',
@@ -197,21 +237,30 @@ production: &base
   # GitLab Satellites
   satellites:
     # Relative paths are relative to Rails.root (default: tmp/repo_satellites/)
-    path: "/home/git/data/gitlab-satellites/"
+    path: "{{GITLAB_DATA_DIR}}/gitlab-satellites/"
     timeout: 30
 
   ## Backup settings
   backup:
-    path: "/home/git/data/backups"   # Relative paths are relative to Rails.root (default: tmp/backups/)
+    path: "{{GITLAB_BACKUP_DIR}}"   # Relative paths are relative to Rails.root (default: tmp/backups/)
     keep_time: {{GITLAB_BACKUP_EXPIRY}}   # default: 0 (forever) (in seconds)
+    # upload:
+    #   # Fog storage connection settings, see http://fog.io/storage/ .
+    #   connection:
+    #     provider: AWS
+    #     region: eu-west-1
+    #     aws_access_key_id: AKIAKIAKI
+    #     aws_secret_access_key: 'secret123'
+    #   # The remote 'directory' to store your backups. For S3, this would be the bucket name.
+    #   remote_directory: 'my.s3.bucket'
 
   ## GitLab Shell settings
   gitlab_shell:
-    path: "/home/git/gitlab-shell/"
+    path: "{{GITLAB_SHELL_INSTALL_DIR}}/"
 
     # REPOS_PATH MUST NOT BE A SYMLINK!!!
-    repos_path: "/home/git/data/repositories/"
-    hooks_path: "/home/git/gitlab-shell/hooks/"
+    repos_path: "{{GITLAB_DATA_DIR}}/repositories/"
+    hooks_path: "{{GITLAB_SHELL_INSTALL_DIR}}/hooks/"
 
     # Git over HTTP
     upload_pack: true
@@ -224,7 +273,7 @@ production: &base
   # CAUTION!
   # Use the default values unless you really know what you are doing
   git:
-    bin_path: "/usr/bin/git"
+    bin_path: /usr/bin/git
     # The next value is the maximum memory size grit can use
     # Given in number of bytes per git object (e.g. a commit)
     # This value can be increased if you have very large commits
@@ -257,13 +306,13 @@ test:
   gravatar:
     enabled: true
   gitlab:
-    host: "{{GITLAB_HOST}}"
-    port: {{GITLAB_PORT}}
+    host: localhost
+    port: 80
 
     # When you run tests we clone and setup gitlab-shell
-    # In order to setup it correctly you need to specify 
+    # In order to setup it correctly you need to specify
     # your system username you use to run GitLab
-    # user: YOUR_USERNAME 
+    # user: YOUR_USERNAME
   satellites:
     path: tmp/tests/gitlab-satellites/
   gitlab_shell:
@@ -276,6 +325,20 @@ test:
       project_url: "http://redmine/projects/:issues_tracker_id"
       issues_url: "http://redmine/:project_id/:issues_tracker_id/:id"
       new_issue_url: "http://redmine/projects/:issues_tracker_id/issues/new"
+  ldap:
+    enabled: false
+    servers:
+      main:
+        label: ldap
+        host: 127.0.0.1
+        port: 3890
+        uid: 'uid'
+        method: 'plain' # "tls" or "ssl" or "plain"
+        base: 'dc=example,dc=com'
+        user_filter: ''
+        group_base: 'ou=groups,dc=example,dc=com'
+        admin_group: ''
+        sync_ssh_keys: false
 
 staging:
   <<: *base

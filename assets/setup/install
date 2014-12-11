@@ -1,8 +1,27 @@
 #!/bin/bash
 set -e
 
-GITLAB_VERSION=7.2.0
-SHELL_VERSION=1.9.7
+GITLAB_VERSION=7.5.3
+GITLAB_SHELL_VERSION=2.2.0
+
+GITLAB_HOME="/home/git"
+GITLAB_INSTALL_DIR="${GITLAB_HOME}/gitlab"
+GITLAB_DATA_DIR="${GITLAB_HOME}/data"
+GITLAB_LOG_DIR="/var/log/gitlab"
+GITLAB_SHELL_INSTALL_DIR="${GITLAB_HOME}/gitlab-shell"
+
+SETUP_DIR="/app/setup"
+GEM_CACHE_DIR="${SETUP_DIR}/cache"
+
+# rebuild yum cache
+yum update
+
+# install build dependencies for gem installation
+yum install -y gcc gcc-c++ make patch pkg-config cmake \
+  glibc-devel ruby-devel community-mysql-devel postgresql-devel \
+  zlib-devel libyaml-devel openssl-devel gdbm-devel readline-devel \
+  ncurses-devel libffi-devel libxml2-devel libxslt-devel \
+  libcurl-devel libicu-devel
 
 # remove the host keys generated during openssh-server installation
 rm -rf /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
@@ -12,31 +31,37 @@ useradd -c 'GitLab' git
 passwd -d git
 
 rm -rf /home/git/.ssh
-sudo -u git -H mkdir -p /home/git/data/.ssh
-sudo -u git -H ln -s /home/git/data/.ssh /home/git/.ssh
+sudo -u git -H mkdir -p ${GITLAB_DATA_DIR}/.ssh
+sudo -u git -H ln -s ${GITLAB_DATA_DIR}/.ssh /home/git/.ssh
 
 # create the data store
-sudo -u git -H mkdir -p /home/git/data
+sudo -u git -H mkdir -p ${GITLAB_DATA_DIR}
 
 # install gitlab-shell, use local copy if available
-sudo -u git -H git clone -b v${SHELL_VERSION} --depth 1 \
-  https://github.com/gitlabhq/gitlab-shell.git /home/git/gitlab-shell
+echo "Cloning gitlab-shell v.${GITLAB_SHELL_VERSION}..."
+sudo -u git -H git clone -q -b v${GITLAB_SHELL_VERSION} --depth 1 \
+  https://github.com/gitlabhq/gitlab-shell.git ${GITLAB_SHELL_INSTALL_DIR}
 
-cd /home/git/gitlab-shell
+cd ${GITLAB_SHELL_INSTALL_DIR}
 
 sudo -u git -H cp -a config.yml.example config.yml
 sudo -u git -H ./bin/install
 
 # shallow clone gitlab-ce
-sudo -u git -H git clone -b v${GITLAB_VERSION} --depth 1 \
-  https://github.com/gitlabhq/gitlabhq.git /home/git/gitlab
+echo "Cloning gitlab-ce v.${GITLAB_VERSION}..."
+sudo -u git -H git clone -q -b v${GITLAB_VERSION} --depth 1 \
+  https://github.com/gitlabhq/gitlabhq.git ${GITLAB_INSTALL_DIR}
 
-cd /home/git/gitlab
+cd ${GITLAB_INSTALL_DIR}
+
+# remove HSTS config from the default headers, we configure it in nginx
+sed "/headers\['Strict-Transport-Security'\]/d" -i app/controllers/application_controller.rb
 
 # copy default configurations
+
 mkdir -p /etc/nginx/sites-available
 mkdir -p /etc/nginx/sites-enabled
-cp lib/support/nginx/gitlab /etc/nginx/sites-available/gitlab
+cp lib/support/nginx/gitlab /etc/nginx/sites-enabled/gitlab
 sudo -u git -H cp config/gitlab.yml.example config/gitlab.yml
 sudo -u git -H cp config/resque.yml.example config/resque.yml
 sudo -u git -H cp config/database.yml.mysql config/database.yml
@@ -44,28 +69,29 @@ sudo -u git -H cp config/unicorn.rb.example config/unicorn.rb
 sudo -u git -H cp config/initializers/rack_attack.rb.example config/initializers/rack_attack.rb
 sudo -u git -H cp config/initializers/smtp_settings.rb.sample config/initializers/smtp_settings.rb
 
-# create required tmp and log directories
+# symlink log -> ${GITLAB_LOG_DIR}/gitlab
+rm -rf log
+ln -sf ${GITLAB_LOG_DIR}/gitlab log
+
+# create required tmp directories
 sudo -u git -H mkdir -p tmp/pids/ tmp/sockets/
-chmod -R u+rwX log tmp
+chmod -R u+rwX tmp
 
 # create symlink to assets in tmp/cache
 rm -rf tmp/cache
-sudo -u git -H ln -s /home/git/data/tmp/cache tmp/cache
+sudo -u git -H ln -s ${GITLAB_DATA_DIR}/tmp/cache tmp/cache
 
 # create symlink to assets in public/assets
 rm -rf public/assets
-sudo -u git -H ln -s /home/git/data/tmp/public/assets public/assets
+sudo -u git -H ln -s ${GITLAB_DATA_DIR}/tmp/public/assets public/assets
 
 # create symlink to uploads directory
 rm -rf public/uploads
-sudo -u git -H ln -s /home/git/data/uploads public/uploads
-
-# create production log
-sudo -u git -H touch log/production.log
+sudo -u git -H ln -s ${GITLAB_DATA_DIR}/uploads public/uploads
 
 # install gems required by gitlab, use local cache if available
-if [ -d "/app/setup/cache" ]; then
-  mv /app/setup/cache vendor/
+if [ -d "${GEM_CACHE_DIR}" ]; then
+  mv ${GEM_CACHE_DIR} vendor/
   chown -R git:git vendor/cache
 fi
 sudo -u git -H bundle install --deployment --without development test aws
@@ -80,22 +106,111 @@ chmod o+x /home/git
 cp lib/support/init.d/gitlab /etc/init.d/gitlab
 chmod +x /etc/init.d/gitlab
 
-# install logrotate configuration
-cp lib/support/logrotate/gitlab /etc/logrotate.d/gitlab
-
 # disable default nginx configuration and enable gitlab's nginx configuration
 rm -f /etc/nginx/sites-enabled/default
-ln -s /etc/nginx/sites-available/gitlab /etc/nginx/sites-enabled/gitlab
-
-# silence setlocale message (#93)
-cat > /etc/default/locale <<EOF
-LC_ALL=en_US.UTF-8
-LANG=en_US.UTF-8
-EOF
 
 # disable pam authentication for sshd
 sed 's/UsePAM yes/UsePAM no/' -i /etc/ssh/sshd_config
 sed 's/UsePrivilegeSeparation yes/UsePrivilegeSeparation no/' -i /etc/ssh/sshd_config
+echo "UseDNS no" >> /etc/ssh/sshd_config
+
+# move supervisord.log file to ${GITLAB_LOG_DIR}/supervisor/
+sed 's|^logfile=.*|logfile='"${GITLAB_LOG_DIR}"'/supervisor/supervisord.log ;|' -i /etc/supervisor/supervisord.conf
+
+# move nginx logs to ${GITLAB_LOG_DIR}/nginx
+sed 's|access_log /var/log/nginx/access.log;|access_log '"${GITLAB_LOG_DIR}"'/nginx/access.log;|' -i /etc/nginx/nginx.conf
+sed 's|error_log /var/log/nginx/error.log;|error_log '"${GITLAB_LOG_DIR}"'/nginx/error.log;|' -i /etc/nginx/nginx.conf
+
+# configure supervisord log rotation
+cat > /etc/logrotate.d/supervisord <<EOF
+${GITLAB_LOG_DIR}/supervisor/*.log {
+  weekly
+  missingok
+  rotate 52
+  compress
+  delaycompress
+  notifempty
+  copytruncate
+}
+EOF
+
+# configure gitlab log rotation
+cat > /etc/logrotate.d/gitlab <<EOF
+${GITLAB_LOG_DIR}/gitlab/*.log {
+  weekly
+  missingok
+  rotate 52
+  compress
+  delaycompress
+  notifempty
+  copytruncate
+}
+EOF
+
+# configure gitlab-shell log rotation
+cat > /etc/logrotate.d/gitlab <<EOF
+${GITLAB_LOG_DIR}/gitlab-shell/*.log {
+  weekly
+  missingok
+  rotate 52
+  compress
+  delaycompress
+  notifempty
+  copytruncate
+}
+EOF
+
+# configure gitlab vhost log rotation
+cat > /etc/logrotate.d/gitlab <<EOF
+${GITLAB_LOG_DIR}/nginx/*.log {
+  weekly
+  missingok
+  rotate 52
+  compress
+  delaycompress
+  notifempty
+  copytruncate
+}
+EOF
+
+# configure supervisord to start unicorn
+cat > /etc/supervisor/conf.d/unicorn.conf <<EOF
+[program:unicorn]
+priority=10
+directory=${GITLAB_INSTALL_DIR}
+environment=HOME=/home/git
+command=bundle exec unicorn_rails -c ${GITLAB_INSTALL_DIR}/config/unicorn.rb -E production
+user=git
+autostart=true
+autorestart=true
+stopsignal=QUIT
+stdout_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
+stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
+EOF
+
+# configure supervisord to start sidekiq
+cat > /etc/supervisor/conf.d/sidekiq.conf <<EOF
+[program:sidekiq]
+priority=10
+directory=${GITLAB_INSTALL_DIR}
+environment=HOME=/home/git
+command=bundle exec sidekiq -c {{SIDEKIQ_CONCURRENCY}}
+  -q post_receive
+  -q mailer
+  -q system_hook
+  -q project_web_hook
+  -q gitlab_shell
+  -q common
+  -q default
+  -e production
+  -P ${GITLAB_INSTALL_DIR}/tmp/pids/sidekiq.pid
+  -L ${GITLAB_INSTALL_DIR}/log/sidekiq.log
+user=git
+autostart=true
+autorestart=true
+stdout_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
+stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
+EOF
 
 # configure supervisor to start sshd
 mkdir -p /var/run/sshd
@@ -104,62 +219,44 @@ cat > /etc/supervisord.d/sshd.ini <<EOF
 directory=/
 command=/usr/sbin/sshd -D
 user=root
-autostart=false
+autostart=true
 autorestart=true
-stdout_logfile=/var/log/supervisor/%(program_name)s.log
-stderr_logfile=/var/log/supervisor/%(program_name)s_error.log
+stdout_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
+stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
 # configure supervisord to start nginx
-mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.orig
-cat > /etc/nginx/nginx.conf <<EOF
-user  nginx;
-worker_processes  1;
-daemon off;
-
-error_log  /var/log/nginx/error.log;
-
-pid        /run/nginx.pid;
-
-events {
-    worker_connections  1024;
-}
-
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-
-    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
-                      '$status $body_bytes_sent "$http_referer" '
-                      '"$http_user_agent" "$http_x_forwarded_for"';
-
-    access_log  /var/log/nginx/access.log  main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    #keepalive_timeout  0;
-    keepalive_timeout  65;
-
-    #gzip  on;
-    
-    # Load modular configuration files from the /etc/nginx/conf.d directory.
-    # See http://nginx.org/en/docs/ngx_core_module.html#include
-    # for more information.
-    include /etc/nginx/conf.d/*.conf;
-    include /etc/nginx/sites-enabled/*;
-}
-EOF
-cat > /etc/supervisord.d/nginx.ini <<EOF
+cat > /etc/supervisor/conf.d/nginx.conf <<EOF
 [program:nginx]
 priority=20
 directory=/tmp
-command=/usr/sbin/nginx
+command=/usr/sbin/nginx -g "daemon off;"
 user=root
-autostart=false
+autostart=true
 autorestart=true
-stdout_logfile=/var/log/supervisor/%(program_name)s.log
-stderr_logfile=/var/log/supervisor/%(program_name)s.log
+stdout_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
+stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
+# configure supervisord to start crond
+cat > /etc/supervisor/conf.d/cron.conf <<EOF
+[program:cron]
+priority=20
+directory=/tmp
+command=/usr/sbin/cron -f
+user=root
+autostart=true
+autorestart=true
+stdout_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
+stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
+EOF
+
+# purge build dependencies
+yum remove -y gcc gcc-c++ make patch pkg-config cmake \
+  glibc-devel ruby-devel community-mysql-devel postgresql-devel \
+  zlib-devel libyaml-devel openssl-devel gdbm-devel readline-devel \
+  ncurses-devel libffi-devel libxml2-devel libxslt-devel \
+  libcurl-devel libicu-devel
+
+# cleanup
+rm -rf /var/lib/apt/lists/*

@@ -1,5 +1,96 @@
 # Changelog
 
+**7.5.3**
+- accept `BACKUP` parameter while running the restore rake task, closes #220
+- init: do not run `gitlab:satellites:create` rake task at startup
+- gitlab: upgrade to CE v.7.5.3
+
+**7.5.2**
+- gitlab: upgrade to CE v.7.5.2
+
+**7.5.1**
+- gitlab: upgrade to CE v.7.5.1
+- gitlab-shell to v2.2.0
+- added `GITLAB_TIMEZONE` configuration option
+- added `GITLAB_EMAIL_ENABLED` configuration option
+
+**7.4.4**
+- gitlab: upgrade to CE v.7.4.4
+- added `SSL_VERIFY_CLIENT` configuration option
+- added `NGINX_WORKERS` configuration option
+- added `USERMAP_UID` and `USERMAP_GID` configuration option
+
+**7.4.3**
+- gitlab: upgrade to CE v.7.4.3
+
+**7.4.2**
+- gitlab: upgrade to CE v.7.4.2
+
+**7.4.0**
+- gitlab: upgrade to CE v.7.4.0
+- config: added `LDAP_ACTIVE_DIRECTORY` configuration option
+- added SMTP_OPENSSL_VERIFY_MODE configuration option
+- feature: gitlab logs volume
+- automatically compile assets if relative_url is changed
+- launch all daemons via supervisord
+
+**7.3.2-1**
+- fix mysql status check
+
+**7.3.2**
+- upgrade to gitlab-ce 7.3.2
+- removed internal mysql server
+- added support for fetching `DB_NAME`, `DB_USER` and `DB_PASS` from the postgresql linkage
+- added support for fetching `DB_NAME`, `DB_USER` and `DB_PASS` from the mysql linkage
+- gitlab-shell: upgrade to v.2.0.1
+- added GITLAB_GRAVATAR_ENABLED configuration option
+- added fig.yml
+
+**7.3.1-3**
+- fix mysql command again!
+
+**7.3.1-2**
+- fix mysql server status check
+
+**7.3.1-1**
+- plug bash vulnerability by switching to dash shell
+- automatically run the `gitlab:setup` rake task for new installs
+
+**7.3.1**
+- upgrade to gitlab-ce 7.3.1
+
+**7.3.0**
+- upgrade to gitlab-ce 7.3.0
+- added GITLAB_WEBHOOK_TIMEOUT configuration option
+- upgrade to gitlab-shell 2.0.0
+- removed internal redis server
+- shutdown the container gracefully
+
+**7.2.2**
+- upgrade to gitlab-ce 7.2.2
+- added GITLAB_HTTPS_HSTS_ENABLED configuration option (advanced config)
+- added GITLAB_HTTPS_HSTS_MAXAGE configuration option (advanced config)
+- upgrade to gitlab-shell 1.9.8
+- purge development packages after install. shaves off ~300MB from the image.
+- rebase image on sameersbn/debian:jessie.20140918 base image
+- added GITLAB_SSH_HOST configuration option
+- added GITLAB_USERNAME_CHANGE configuration option
+
+**7.2.1-1**
+- removed the GITLAB_HTTPS_ONLY configuration option
+- added NGINX_X_FORWARDED_PROTO configuration option
+- optimization: talk directly to the unicorn worker from gitlab-shell
+
+**7.2.1**
+- upgrade to gitlab-ce 7.2.1
+- added new SMTP_ENABLED configuration option.
+
+**7.2.0-1**
+- fix nginx static route handling when GITLAB_RELATIVE_URL_ROOT is used.
+- fix relative root access without the trailing '/' character
+- added seperate server block for http config in gitlab.https.permissive. Fixes #127
+- added OAUTH_GOOGLE_RESTRICT_DOMAIN config option.
+
 **7.2.0**
 - upgrade to gitlab-ce 7.2.0
 - disable UsePrivilegeSeparation in sshd configuration, fixes #122
