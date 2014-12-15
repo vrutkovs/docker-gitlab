@@ -59,9 +59,7 @@ sed "/headers\['Strict-Transport-Security'\]/d" -i app/controllers/application_c
 
 # copy default configurations
 
-mkdir -p /etc/nginx/sites-available
-mkdir -p /etc/nginx/sites-enabled
-cp lib/support/nginx/gitlab /etc/nginx/sites-enabled/gitlab
+cp lib/support/nginx/gitlab /etc/nginx/conf.d/gitlab.conf
 sudo -u git -H cp config/gitlab.yml.example config/gitlab.yml
 sudo -u git -H cp config/resque.yml.example config/resque.yml
 sudo -u git -H cp config/database.yml.mysql config/database.yml
@@ -107,7 +105,8 @@ cp lib/support/init.d/gitlab /etc/init.d/gitlab
 chmod +x /etc/init.d/gitlab
 
 # disable default nginx configuration and enable gitlab's nginx configuration
-rm -f /etc/nginx/sites-enabled/default
+#rm -f /etc/nginx/sites-enabled/default
+sed -i '/server {/,/\Z/d' /etc/nginx/nginx.conf && echo \} >> /etc/nginx/nginx.conf
 
 # disable pam authentication for sshd
 sed 's/UsePAM yes/UsePAM no/' -i /etc/ssh/sshd_config
@@ -174,7 +173,7 @@ ${GITLAB_LOG_DIR}/nginx/*.log {
 EOF
 
 # configure supervisord to start unicorn
-cat > /etc/supervisord.d/unicorn.conf <<EOF
+cat > /etc/supervisord.d/unicorn.ini <<EOF
 [program:unicorn]
 priority=10
 directory=${GITLAB_INSTALL_DIR}
@@ -189,7 +188,7 @@ stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
 # configure supervisord to start sidekiq
-cat > /etc/supervisord.d/sidekiq.conf <<EOF
+cat > /etc/supervisord.d/sidekiq.ini <<EOF
 [program:sidekiq]
 priority=10
 directory=${GITLAB_INSTALL_DIR}
@@ -226,7 +225,7 @@ stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
 # configure supervisord to start nginx
-cat > /etc/supervisord.d/nginx.conf <<EOF
+cat > /etc/supervisord.d/nginx.ini <<EOF
 [program:nginx]
 priority=20
 directory=/tmp
@@ -239,11 +238,11 @@ stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
 # configure supervisord to start crond
-cat > /etc/supervisord.d/cron.conf <<EOF
+cat > /etc/supervisord.d/cron.ini <<EOF
 [program:cron]
 priority=20
 directory=/tmp
-command=/usr/sbin/cron -f
+command=/usr/sbin/crond -n
 user=root
 autostart=true
 autorestart=true
@@ -258,5 +257,3 @@ yum remove -y gcc gcc-c++ patch cmake \
   ncurses-devel libffi-devel libxml2-devel libxslt-devel \
   libcurl-devel libicu-devel
 
-# cleanup
-rm -rf /var/lib/apt/lists/*
