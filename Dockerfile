@@ -1,12 +1,13 @@
-FROM fedora:20
+FROM centos:centos7
 MAINTAINER jbrooks@redhat.com
 
 RUN yum update -y; yum clean all
+RUN yum -y install epel-release; yum clean all
 RUN yum install -y supervisor logrotate nginx openssh-server \
     git postgresql ruby rubygems python python-docutils \
-    community-mysql-devel libpqxx zlib libyaml gdbm readline \
+    mariadb-devel libpqxx zlib libyaml gdbm readline \
     ncurses libffi libxml2 libxslt libcurl libicu rubygem-bundler \
-    which; yum clean all
+    which sudo passwd tar initscripts cronie; yum clean all
 RUN sed -i 's/Defaults    requiretty/#Defaults    requiretty/g' /etc/sudoers
 ADD assets/setup/ /app/setup/
 RUN chmod 755 /app/setup/install
