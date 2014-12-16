@@ -48,7 +48,7 @@ Start the gitlab container
 docker run --name=gitlab -d --link redis:redisio --link postgresql:postgresql $USER/gitlab
 ```
 
-Monitor the setup process with `docker logs -f gitlab`. When supervisor reports that `unicorn`, `nginx`, `cron`, `sshd` and `sidekiq` are `RUNNING`, find the IP address of your gitlab container with `docker inspect gitlab | grep IP` point your browser at this IP, and log in using the default username and password:
+Monitor the setup process with `docker logs -f gitlab`. When supervisor reports that `unicorn`, `nginx`, `cron`, `sshd` and `sidekiq` are `RUNNING`, find the IP address of your gitlab container with `docker inspect gitlab | grep IP`, point your browser at this IP, and log in using the default username and password:
 
 * username: root
 * password: 5iveL!fe
