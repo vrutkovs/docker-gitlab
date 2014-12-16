@@ -10,34 +10,19 @@ cd docker-gitlab
 docker build --tag="$USER/gitlab" .
 ```
 
-Build a gitlab data container.
-
-```bash
-docker run --name=gitlab-data -v /home/git/data busybox true
-```
-
 Build a postgresql image.
 
 ```bash
-cd postgres
-docker build --tag="$USER/postgres" .
-cd ..
-```
-
-Build a postgresql data container.
-
-```bash
-docker run --name=postgres-data -v /var/lib/postgresql busybox true
+git clone https://github.com/CentOS/CentOS-Dockerfiles.git
+docker build --tag="$USER/postgres" CentOS-Dockerfiles/postgres/centos7/.
 ```
 
 Build a redis image.
 
 ```bash
-cd redis
-docker build --tag="$USER/redis" .
-cd ..
+git clone https://github.com/CentOS/CentOS-Dockerfiles.git
+docker build --tag="$USER/redis" CentOS-Dockerfiles/redis/centos7/.
 ```
-
 
 ## Startup
 
@@ -47,56 +32,23 @@ Start the redis container
 docker run --name=redis -d $USER/redis
 ```
 
-Configure and start postgres.
+Start the postgres container
 
 ```bash
-docker run --name=postgresql -d \
-  --volumes-from=gitlab-data $USER/postgres
+docker run --name postgresql -d \
+-e 'DB_USER=gitlab' \
+-e 'DB_PASS=password' \
+-e 'DB_NAME=gitlab_production' \
+$USER/postgres
 ```
 
-You should now have the postgresql server running. The password for the postgres user can be found in the "postgres_user.sh" script that accompanies the postgres Dockerfile.
-
-Now, let's log in to the postgresql server and create a user and database for the GitLab application.
+Start the gitlab container
 
 ```bash
-POSTGRESQL_IP=$(docker inspect postgresql | grep IPAddres | awk -F'"' '{print $4}')
-psql dockerdb -U dockeruser -h ${POSTGRESQL_IP}
+docker run --name=gitlab -d --link redis:redisio --link postgresql:postgresql $USER/gitlab
 ```
 
-```sql
-CREATE ROLE gitlab with LOGIN CREATEDB PASSWORD 'password';
-CREATE DATABASE gitlabhq_production;
-GRANT ALL PRIVILEGES ON DATABASE gitlabhq_production to gitlab;
-```
-
-Now that we have the database created for gitlab, let's install the database schema. This is done by starting the gitlab container with the **app:rake gitlab:setup** command.
-
-```bash
-docker run --name=gitlab -it --rm \
-  --link postgresql:postgresql \
-  --link redis:redisio \
-  -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
-  -e 'DB_NAME=gitlabhq_production' \
-  --volumes-from=gitlab-data $USER/gitlab app:rake gitlab:setup
-```
-
-**NOTE: The above database setup is performed only for the first run**.
-
-Run the gitlab image
-
-```bash
-docker run --name=gitlab -it --rm \
-  --link redis:redisio --link postgresql:postgresql \
-  -p 10022:22 -p 10080:80 \
-  -e 'GITLAB_PORT=10080' -e 'GITLAB_SSH_PORT=10022' \
-  -e 'DB_USER=gitlab' -e 'DB_PASS=password' \
-  -e 'DB_NAME=gitlabhq_production' \
-  --volumes-from=gitlab-data $USER/gitlab
-```
-
-__NOTE__: Please allow a couple of minutes for the GitLab application to start.
-
-Point your browser to `http://localhost:10080` and login using the default username and password:
+Find the IP address of your gitlab container with `docker inspect gitlab | grep IP`, point your browser at this IP, and log in using the default username and password:
 
 * username: root
 * password: 5iveL!fe
