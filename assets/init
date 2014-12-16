@@ -636,10 +636,10 @@ appStart () {
     mysql)
       prog="mysqladmin -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER} ${DB_PASS:+-p$DB_PASS} status"
       ;;
-    postgres)
-      prog=$(find /usr/bin/ -name pg_isready)
-      prog="${prog} -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -t 1"
-      ;;
+#    postgres)
+#      prog=$(find /usr/bin/ -name pg_isready)
+#      prog="${prog} -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -t 1"
+#      ;;
   esac
   timeout=60
   printf "Waiting for database server to accept connections"
