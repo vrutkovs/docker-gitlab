@@ -254,6 +254,6 @@ EOF
 yum remove -y gcc gcc-c++ patch cmake \
   glibc-devel ruby-devel community-mysql-devel postgresql-devel \
   zlib-devel libyaml-devel openssl-devel gdbm-devel readline-devel \
-  ncurses-devel libffi-devel libxml2-devel libxslt-devel \
+  ncurses-devel libxml2-devel libxslt-devel \
   libcurl-devel libicu-devel
 
