@@ -4,7 +4,7 @@
   "apiVersion": "v1beta1",
   "port": 80,
   "containerPort": "http",
-  "publicIPs": ["130.211.169.70"],
+  "publicIPs": ["STATIC_IP_HERE"],
   "selector": {
     "name": "gitlab"
   }
