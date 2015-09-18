@@ -110,6 +110,8 @@ OAUTH_TWITTER_APP_SECRET=${OAUTH_TWITTER_APP_SECRET:-}
 OAUTH_GITHUB_API_KEY=${OAUTH_GITHUB_API_KEY:-}
 OAUTH_GITHUB_APP_SECRET=${OAUTH_GITHUB_APP_SECRET:-}
 
+OAUTH_AUTO_SIGN_IN_WITH_PROVIDER=${OAUTH_AUTO_SIGN_IN_WITH_PROVIDER:-}
+
 # is a mysql or postgresql database linked?
 # requires that the mysql or postgresql containers have exposed
 # port 3306 and 5432 respectively.
@@ -551,6 +553,15 @@ OAUTH_ENABLED=${OAUTH_ENABLED:-false}
 sudo -u git -H sed 's/{{OAUTH_ENABLED}}/'"${OAUTH_ENABLED}"'/' -i config/gitlab.yml
 sudo -u git -H sed 's/{{OAUTH_ALLOW_SSO}}/'"${OAUTH_ALLOW_SSO}"'/' -i config/gitlab.yml
 sudo -u git -H sed 's/{{OAUTH_BLOCK_AUTO_CREATED_USERS}}/'"${OAUTH_BLOCK_AUTO_CREATED_USERS}"'/' -i config/gitlab.yml
+
+case $OAUTH_AUTO_SIGN_IN_WITH_PROVIDER in
+  google_oauth2|twitter|github|gitlab|bitbucket|saml)
+    sudo -u git -H sed 's/{{OAUTH_AUTO_SIGN_IN_WITH_PROVIDER}}/'"${OAUTH_AUTO_SIGN_IN_WITH_PROVIDER}"'/' -i config/gitlab.yml
+    ;;
+  *)
+    sudo -u git -H sed '/{{OAUTH_AUTO_SIGN_IN_WITH_PROVIDER}}/d' -i config/gitlab.yml
+    ;;
+esac
 
 # configure nginx vhost
 sed 's,{{GITLAB_INSTALL_DIR}},'"${GITLAB_INSTALL_DIR}"',g' -i /etc/nginx/conf.d/gitlab.conf

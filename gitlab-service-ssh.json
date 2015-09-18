@@ -1,12 +1,23 @@
 {
-  "id": "gitlab-ssh",
+  "id": "gitlab",
   "kind": "Service",
-  "apiVersion": "v1beta1",
-  "port": 22,
-  "containerPort": "ssh",
-  "publicIPs": ["STATIC_IP_HERE"],
-  "selector": {
-    "name": "gitlab"
-  }
+    "metadata": {
+        "name": "gitlab-ssh-service",
+        "labels": {
+            "name": "gitlab"
+        }
+    },
+  "apiVersion": "v1",
+    "spec": {
+        "ports": [
+            {
+                "targetPort": 22,
+                "port": 22
+            }
+        ],
+        "selector": {
+            "name": "gitlab"
+        }
+    }
 }
 

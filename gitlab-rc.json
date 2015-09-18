@@ -22,7 +22,7 @@
                 "containers": [
                     {
                         "name": "gitlab",
-                        "image": "swordphilic/gitlab:latest",
+                        "image": "kubernetes:5000/gitlab:latest",
                         "env": [
                             {
                                 "name": "DB_USER",
