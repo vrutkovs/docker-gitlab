@@ -663,6 +663,8 @@ touch ${GITLAB_DATA_DIR}/.ssh/authorized_keys
 chmod 700 ${GITLAB_DATA_DIR}/.ssh
 chmod 600 ${GITLAB_DATA_DIR}/.ssh/authorized_keys
 chown -R git:git ${GITLAB_DATA_DIR}/.ssh
+chcon -t ssh_home_t ${GITLAB_DATA_DIR}/.ssh/
+chcon -t ssh_home_t ${GITLAB_DATA_DIR}/.ssh/authorized_keys
 
 appStart () {
   # due to the nature of docker and its use cases, we allow some time

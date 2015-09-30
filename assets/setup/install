@@ -100,6 +100,9 @@ chown -R git:git /home/git/
 # added to allow nginx to access gitlab.socket
 chmod o+x /home/git
 
+# set correct selinux labels
+chcon -t user_home_dir_t /home/git
+
 # install gitlab bootscript
 cp lib/support/init.d/gitlab /etc/init.d/gitlab
 chmod +x /etc/init.d/gitlab
