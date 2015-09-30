@@ -14,7 +14,7 @@ SETUP_DIR="/app/setup"
 GEM_CACHE_DIR="${SETUP_DIR}/cache"
 
 # rebuild yum cache
-yum update
+yum update -y
 
 # install build dependencies for gem installation
 yum install -y gcc gcc-c++ make patch pkgconfig cmake \
