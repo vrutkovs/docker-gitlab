@@ -1,11 +1,12 @@
 #!/bin/bash
 set -e
 
-GITLAB_VERSION=7.14.3
+GITLAB_VERSION=8.0.3
 GITLAB_SHELL_VERSION=2.6.5
 
 GITLAB_HOME="/home/git"
 GITLAB_INSTALL_DIR="${GITLAB_HOME}/gitlab"
+GITLAB_GIT_HTTP_SERVER_INSTALL_DIR="${GITLAB_HOME}/gitlab-git-http-server"
 GITLAB_DATA_DIR="${GITLAB_HOME}/data"
 GITLAB_LOG_DIR="/var/log/gitlab"
 GITLAB_SHELL_INSTALL_DIR="${GITLAB_HOME}/gitlab-shell"
@@ -21,7 +22,7 @@ yum install -y gcc gcc-c++ make patch pkgconfig cmake \
   glibc-devel ruby-devel community-mysql-devel postgresql-devel \
   zlib-devel libyaml-devel openssl-devel gdbm-devel readline-devel \
   ncurses-devel libffi-devel libxml2-devel libxslt-devel \
-  libcurl-devel libicu-devel
+  libcurl-devel libicu-devel golang
 
 # remove the host keys generated during openssh-server installation
 rm -rf /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
@@ -46,6 +47,11 @@ cd ${GITLAB_SHELL_INSTALL_DIR}
 
 sudo -u git -H cp -a config.yml.example config.yml
 sudo -u git -H ./bin/install
+
+echo "Cloning gitlab-git-http-server..."
+sudo -u git -H git clone -q https://gitlab.com/gitlab-org/gitlab-git-http-server.git --depth 1 ${GITLAB_GIT_HTTP_SERVER_INSTALL_DIR}
+cd ${GITLAB_GIT_HTTP_SERVER_INSTALL_DIR}
+sudo -u git -H make
 
 # shallow clone gitlab-ce
 echo "Cloning gitlab-ce v.${GITLAB_VERSION}..."
@@ -99,6 +105,9 @@ chown -R git:git /home/git/
 
 # added to allow nginx to access gitlab.socket
 chmod o+x /home/git
+
+# install schedules cronjob
+sudo -u git -H bundle exec whenever -w
 
 # set correct selinux labels
 chcon -t user_home_dir_t /home/git
@@ -202,6 +211,8 @@ command=bundle exec sidekiq -c {{SIDEKIQ_CONCURRENCY}}
   -q system_hook
   -q project_web_hook
   -q gitlab_shell
+  -q incoming_email
+  -q runner
   -q common
   -q default
   -e production
@@ -212,6 +223,39 @@ autostart=true
 autorestart=true
 stdout_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
+EOF
+
+# configure supervisord to start gitlab-git-http-server
+cat > /etc/supervisord.d/gitlab-git-http-server.conf <<EOF
+[program:gitlab-git-http-server]
+priority=20
+directory=${GITLAB_INSTALL_DIR}
+environment=HOME=${GITLAB_HOME}
+command=${GITLAB_GIT_HTTP_SERVER_INSTALL_DIR}/gitlab-git-http-server
+  -listenUmask 0
+  -listenNetwork unix
+  -listenAddr ${GITLAB_INSTALL_DIR}/tmp/sockets/gitlab-git-http-server.socket
+  -authBackend http://127.0.0.1:8080
+  {{GITLAB_DATA_DIR}}/repositories
+user=git
+autostart=true
+autorestart=true
+stdout_logfile=${GITLAB_INSTALL_DIR}/log/%(program_name)s.log
+stderr_logfile=${GITLAB_INSTALL_DIR}/log/%(program_name)s.log
+EOF
+
+# configure supervisord to start mail_room
+cat > /etc/supervisord.d/mail_room.conf <<EOF
+[program:mail_room]
+priority=20
+directory=${GITLAB_INSTALL_DIR}
+environment=HOME=${GITLAB_HOME}
+command=bundle exec mail_room -c ${GITLAB_INSTALL_DIR}/config/mail_room.yml
+user=git
+autostart={{GITLAB_INCOMING_EMAIL_ENABLED}}
+autorestart=true
+stdout_logfile=${GITLAB_INSTALL_DIR}/log/%(program_name)s.log
+stderr_logfile=${GITLAB_INSTALL_DIR}/log/%(program_name)s.log
 EOF
 
 # configure supervisor to start sshd

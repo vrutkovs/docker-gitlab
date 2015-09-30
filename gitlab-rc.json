@@ -22,7 +22,7 @@
                 "containers": [
                     {
                         "name": "gitlab",
-                        "image": "vrutkovs/gitlab:7.14.3",
+                        "image": "vrutkovs/gitlab:8.0.3",
                         "env": [
                             {
                                 "name": "DB_USER",

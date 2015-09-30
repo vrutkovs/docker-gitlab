@@ -14,6 +14,7 @@ USERCONF_TEMPLATES_DIR="${GITLAB_DATA_DIR}/config"
 
 GITLAB_HOST=${GITLAB_HOST:-localhost}
 GITLAB_PORT=${GITLAB_PORT_80_TCP_PORT:-}
+GITLAB_CI_HOST=${GITLAB_CI_HOST:-}
 GITLAB_SSH_HOST=${GITLAB_SSH_HOST:-$GITLAB_HOST}
 GITLAB_SSH_PORT=${GITLAB_SSH_PORT:-$GITLAB_SHELL_SSH_PORT} # for backwards compatibility
 GITLAB_SSH_PORT=${GITLAB_SSH_PORT:-22}
@@ -32,6 +33,10 @@ GITLAB_WEBHOOK_TIMEOUT=${GITLAB_WEBHOOK_TIMEOUT:-10}
 GITLAB_GRAVATAR_ENABLED=${GITLAB_GRAVATAR_ENABLED:-true}
 GITLAB_GRAVATAR_HTTP_URL=${GITLAB_GRAVATAR_HTTP_URL:http://www.gravatar.com/avatar/%{hash}?s=%{size}&d=identicon}
 GITLAB_GRAVATAR_HTTPS_URL=${GITLAB_GRAVATAR_HTTPS_URL:https://secure.gravatar.com/avatar/%{hash}?s=%{size}&d=identicon}
+
+GITLAB_SECRETS_DB_KEY_BASE=${GITLAB_SECRETS_DB_KEY_BASE:-}
+GITLAB_NOTIFY_ON_BROKEN_BUILDS=${GITLAB_NOTIFY_ON_BROKEN_BUILDS:-true}
+GITLAB_NOTIFY_PUSHER=${GITLAB_NOTIFY_PUSHER:-false}
 
 SSL_SELF_SIGNED=${SSL_SELF_SIGNED:-false}
 SSL_CERTIFICATE_PATH=${SSL_CERTIFICATE_PATH:-$GITLAB_DATA_DIR/certs/gitlab.crt}
@@ -84,7 +89,29 @@ if [ -n "${SMTP_USER}" ]; then
   SMTP_AUTHENTICATION=${SMTP_AUTHENTICATION:-login}
 fi
 SMTP_ENABLED=${SMTP_ENABLED:-false}
-GITLAB_EMAIL_ENABLED=${GITLAB_EMAIL_ENABLED:-$SMTP_ENABLED}
+GITLAB_EMAIL_ENABLED=${GITLAB_EMAIL_ENABLED:-${SMTP_ENABLED}}
+GITLAB_EMAIL=${GITLAB_EMAIL:-${SMTP_USER}}
+GITLAB_EMAIL_REPLY_TO=${GITLAB_EMAIL_REPLY_TO:-${GITLAB_EMAIL}}
+GITLAB_EMAIL=${GITLAB_EMAIL:-example@example.com}
+GITLAB_EMAIL_REPLY_TO=${GITLAB_EMAIL_REPLY_TO:-noreply@example.com}
+GITLAB_EMAIL_DISPLAY_NAME=${GITLAB_EMAIL_DISPLAY_NAME:-GitLab}
+
+IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
+IMAP_PORT=${IMAP_PORT:-993}
+IMAP_USER=${IMAP_USER:-}
+IMAP_PASS=${IMAP_PASS:-}
+IMAP_SSL=${IMAP_SSL:-true}
+IMAP_MAILBOX=${IMAP_MAILBOX:-inbox}
+if [[ -n ${IMAP_USER} ]]; then
+  IMAP_ENABLED=${IMAP_ENABLED:-true}
+fi
+IMAP_ENABLED=${IMAP_ENABLED:-false}
+GITLAB_INCOMING_EMAIL_ENABLED=${GITLAB_INCOMING_EMAIL_ENABLED:-${IMAP_ENABLED}}
+GITLAB_INCOMING_EMAIL_ADDRESS=${GITLAB_INCOMING_EMAIL_ADDRESS:-${IMAP_USER}}
+GITLAB_INCOMING_EMAIL_ADDRESS=${GITLAB_INCOMING_EMAIL_ADDRESS:-reply@example.com}
+if ! grep -q '+%{key}@' <<< $GITLAB_INCOMING_EMAIL_ADDRESS; then
+  GITLAB_INCOMING_EMAIL_ADDRESS=$(sed 's/@/+%{key}@/' <<< $GITLAB_INCOMING_EMAIL_ADDRESS)
+fi
 
 LDAP_ENABLED=${LDAP_ENABLED:-false}
 LDAP_HOST=${LDAP_HOST:-}
@@ -269,6 +296,13 @@ if [ -z "${REDIS_HOST}" ]; then
   exit 1
 fi
 
+if [[ -z $GITLAB_SECRETS_DB_KEY_BASE ]]; then
+  echo "ERROR: "
+  echo "  Please configure the GITLAB_SECRETS_DB_KEY_BASE parameter."
+  echo "  Cannot continue. Aborting..."
+  exit 1
+fi
+
 case "${GITLAB_HTTPS}" in
   true)
     GITLAB_PORT=${GITLAB_PORT:-443}
@@ -321,14 +355,20 @@ case "${GITLAB_HTTPS}" in
   *) cp ${SYSCONF_TEMPLATES_DIR}/nginx/gitlab /etc/nginx/conf.d/gitlab.conf ;;
 esac
 
+[[ -n $GITLAB_CI_HOST ]] && cp ${SYSCONF_TEMPLATES_DIR}/nginx/gitlab_ci /etc/nginx/sites-enabled/gitlab_ci
+
 sudo -u git -H cp ${SYSCONF_TEMPLATES_DIR}/gitlab-shell/config.yml    ${GITLAB_SHELL_INSTALL_DIR}/config.yml
 sudo -u git -H cp ${SYSCONF_TEMPLATES_DIR}/gitlabhq/gitlab.yml        config/gitlab.yml
+sudo -u git -H cp ${SYSCONF_TEMPLATES_DIR}/gitlabhq/secrets.yml       config/secrets.yml
 sudo -u git -H cp ${SYSCONF_TEMPLATES_DIR}/gitlabhq/resque.yml        config/resque.yml
 sudo -u git -H cp ${SYSCONF_TEMPLATES_DIR}/gitlabhq/database.yml      config/database.yml
 sudo -u git -H cp ${SYSCONF_TEMPLATES_DIR}/gitlabhq/unicorn.rb        config/unicorn.rb
 sudo -u git -H cp ${SYSCONF_TEMPLATES_DIR}/gitlabhq/rack_attack.rb    config/initializers/rack_attack.rb
 [ "${SMTP_ENABLED}" == "true" ] && \
 sudo -u git -H cp ${SYSCONF_TEMPLATES_DIR}/gitlabhq/smtp_settings.rb  config/initializers/smtp_settings.rb
+[ "${IMAP_ENABLED}" == "true" ] && \
+sudo -u git -H cp ${SYSCONF_TEMPLATES_DIR}/gitlabhq/mail_room.yml  config/mail_room.yml
+
 
 # override default configuration templates with user templates
 case "${GITLAB_HTTPS}" in
@@ -342,14 +382,19 @@ case "${GITLAB_HTTPS}" in
   *) [ -f ${USERCONF_TEMPLATES_DIR}/nginx/gitlab ] && cp ${USERCONF_TEMPLATES_DIR}/nginx/gitlab /etc/nginx/conf.d/gitlab.conf ;;
 esac
 
+[[ -n $GITLAB_CI_HOST && -f ${USERCONF_TEMPLATES_DIR}/nginx/gitlab_ci ]] && cp ${USERCONF_TEMPLATES_DIR}/nginx/gitlab_ci /etc/nginx/sites-enabled/gitlab_ci
 [ -f ${USERCONF_TEMPLATES_DIR}/gitlab-shell/config.yml ]   && sudo -u git -H cp ${USERCONF_TEMPLATES_DIR}/gitlab-shell/config.yml   ${GITLAB_SHELL_INSTALL_DIR}/config.yml
 [ -f ${USERCONF_TEMPLATES_DIR}/gitlabhq/gitlab.yml ]       && sudo -u git -H cp ${USERCONF_TEMPLATES_DIR}/gitlabhq/gitlab.yml       config/gitlab.yml
+[ -f ${USERCONF_TEMPLATES_DIR}/gitlabhq/secrets.yml ]      && sudo -u git -H cp ${USERCONF_TEMPLATES_DIR}/gitlabhq/secrets.yml      config/secrets.yml
 [ -f ${USERCONF_TEMPLATES_DIR}/gitlabhq/resque.yml ]       && sudo -u git -H cp ${USERCONF_TEMPLATES_DIR}/gitlabhq/resque.yml       config/resque.yml
 [ -f ${USERCONF_TEMPLATES_DIR}/gitlabhq/database.yml ]     && sudo -u git -H cp ${USERCONF_TEMPLATES_DIR}/gitlabhq/database.yml     config/database.yml
 [ -f ${USERCONF_TEMPLATES_DIR}/gitlabhq/unicorn.rb ]       && sudo -u git -H cp ${USERCONF_TEMPLATES_DIR}/gitlabhq/unicorn.rb       config/unicorn.rb
 [ -f ${USERCONF_TEMPLATES_DIR}/gitlabhq/rack_attack.rb ]   && sudo -u git -H cp ${USERCONF_TEMPLATES_DIR}/gitlabhq/rack_attack.rb   config/initializers/rack_attack.rb
 [ "${SMTP_ENABLED}" == "true" ] && \
 [ -f ${USERCONF_TEMPLATES_DIR}/gitlabhq/smtp_settings.rb ] && sudo -u git -H cp ${USERCONF_TEMPLATES_DIR}/gitlabhq/smtp_settings.rb config/initializers/smtp_settings.rb
+[ "${IMAP_ENABLED}" == "true" ] && \
+[ -f ${USERCONF_TEMPLATES_DIR}/gitlabhq/mail_room.yml ] && sudo -u git -H cp ${USERCONF_TEMPLATES_DIR}/gitlabhq/mail_room.yml config/mail_room.yml
+
 
 if [ -f "${SSL_CERTIFICATE_PATH}" -o -f "${CA_CERTIFICATES_PATH}" ]; then
   echo "Updating CA certificates..."
@@ -367,6 +412,9 @@ sudo -u git -H git config --global core.autocrlf input
 sudo -u git -H sed 's,{{GITLAB_DATA_DIR}},'"${GITLAB_DATA_DIR}"',g' -i config/gitlab.yml
 sudo -u git -H sed 's,{{GITLAB_BACKUP_DIR}},'"${GITLAB_BACKUP_DIR}"',g' -i config/gitlab.yml
 sudo -u git -H sed 's,{{GITLAB_SHELL_INSTALL_DIR}},'"${GITLAB_SHELL_INSTALL_DIR}"',g' -i config/gitlab.yml
+sudo -u git -H sed 's,{{GITLAB_BUILDS_DIR}},'"${GITLAB_BUILDS_DIR}"',g' -i config/gitlab.yml
+
+sudo -u git -H sed 's,{{GITLAB_DATA_DIR}},'"${GITLAB_DATA_DIR}"',g' -i /etc/supervisor/conf.d/gitlab-git-http-server.conf
 
 # configure gitlab
 sudo -u git -H sed 's/{{GITLAB_HOST}}/'"${GITLAB_HOST}"'/' -i config/gitlab.yml
@@ -377,6 +425,13 @@ sudo -u git -H sed 's/{{GITLAB_BACKUP_EXPIRY}}/'"${GITLAB_BACKUP_EXPIRY}"'/' -i 
 sudo -u git -H sed 's/{{GITLAB_MAX_SIZE}}/'"${GITLAB_MAX_SIZE}"'/' -i config/gitlab.yml
 sudo -u git -H sed 's/{{GITLAB_SSH_HOST}}/'"${GITLAB_SSH_HOST}"'/' -i config/gitlab.yml
 sudo -u git -H sed 's/{{GITLAB_SSH_PORT}}/'"${GITLAB_SSH_PORT}"'/' -i config/gitlab.yml
+
+# configure ci parameters
+sudo -u git -H sed 's/{{GITLAB_NOTIFY_ON_BROKEN_BUILDS}}/'"${GITLAB_NOTIFY_ON_BROKEN_BUILDS}"'/' -i config/gitlab.yml
+sudo -u git -H sed 's/{{GITLAB_NOTIFY_PUSHER}}/'"${GITLAB_NOTIFY_PUSHER}"'/' -i config/gitlab.yml
+
+# configure secrets
+sudo -u git -H sed 's/{{GITLAB_SECRETS_DB_KEY_BASE}}/'"${GITLAB_SECRETS_DB_KEY_BASE}"'/' -i config/secrets.yml
 
 # configure default timezone
 sudo -u git -H sed 's/{{GITLAB_TIMEZONE}}/'"${GITLAB_TIMEZONE}"'/' -i config/gitlab.yml
@@ -498,6 +553,30 @@ if [ "${SMTP_ENABLED}" == "true" ]; then
   sudo -u git -H sed 's/{{SMTP_TLS}}/'"${SMTP_TLS}"'/' -i config/initializers/smtp_settings.rb
 fi
 
+# configure mail_room IMAP settings
+sed 's/{{GITLAB_INCOMING_EMAIL_ENABLED}}/'"${GITLAB_INCOMING_EMAIL_ENABLED}"'/' -i /etc/supervisor/conf.d/mail_room.conf
+sudo -u git -H sed 's/{{GITLAB_INCOMING_EMAIL_ENABLED}}/'"${GITLAB_INCOMING_EMAIL_ENABLED}"'/' -i config/gitlab.yml
+sudo -u git -H sed 's/{{GITLAB_INCOMING_EMAIL_ADDRESS}}/'"${GITLAB_INCOMING_EMAIL_ADDRESS}"'/' -i config/gitlab.yml
+if [[ ${IMAP_ENABLED} == true ]]; then
+  sudo -u git -H sed 's/{{IMAP_HOST}}/'"${IMAP_HOST}"'/' -i config/mail_room.yml
+  sudo -u git -H sed 's/{{IMAP_PORT}}/'"${IMAP_PORT}"'/' -i config/mail_room.yml
+
+  case ${IMAP_USER} in
+    "") sudo -u git -H sed '/{{IMAP_USER}}/d' -i config/mail_room.yml ;;
+    *) sudo -u git -H sed 's/{{IMAP_USER}}/'"${IMAP_USER}"'/' -i config/mail_room.yml ;;
+  esac
+
+  case ${IMAP_PASS} in
+    "") sudo -u git -H sed '/{{IMAP_PASS}}/d' -i config/mail_room.yml ;;
+    *) sudo -u git -H sed 's/{{IMAP_PASS}}/'"${IMAP_PASS}"'/' -i config/mail_room.yml ;;
+  esac
+
+  sudo -u git -H sed 's/{{IMAP_SSL}}/'"${IMAP_SSL}"'/' -i config/mail_room.yml
+  sudo -u git -H sed 's/{{IMAP_MAILBOX}}/'"${IMAP_MAILBOX}"'/' -i config/mail_room.yml
+  sudo -u git -H sed 's/{{REDIS_HOST}}/'"${REDIS_HOST}"'/' -i config/mail_room.yml
+  sudo -u git -H sed 's/{{REDIS_PORT}}/'"${REDIS_PORT}"'/' -i config/mail_room.yml
+fi
+
 # apply LDAP configuration
 sudo -u git -H sed 's/{{LDAP_ENABLED}}/'"${LDAP_ENABLED}"'/' -i config/gitlab.yml
 sudo -u git -H sed 's/{{LDAP_HOST}}/'"${LDAP_HOST}"'/' -i config/gitlab.yml
@@ -601,9 +680,19 @@ else
   sed '/{{CA_CERTIFICATES_PATH}}/d' -i /etc/nginx/conf.d/gitlab.conf
 fi
 
+# configure ci redirection
+if [[ -f /etc/nginx/sites-enabled/gitlab_ci ]]; then
+  sed 's,{{GITLAB_LOG_DIR}},'"${GITLAB_LOG_DIR}"',g' -i /etc/nginx/sites-enabled/gitlab_ci
+  sed 's/{{GITLAB_HOST}}/'"${GITLAB_HOST}"'/g' -i /etc/nginx/sites-enabled/gitlab_ci
+  sed 's/{{GITLAB_CI_HOST}}/'"${GITLAB_CI_HOST}"'/' -i /etc/nginx/sites-enabled/gitlab_ci
+
+  DNS_RESOLVERS=$(cat /etc/resolv.conf  | grep nameserver | awk '{print $2}' ORS=' ')
+  sed 's/{{DNS_RESOLVERS}}/'"${DNS_RESOLVERS}"'/' -i /etc/nginx/sites-enabled/gitlab_ci
+fi
+
 sed 's/worker_processes .*/worker_processes '"${NGINX_WORKERS}"';/' -i /etc/nginx/nginx.conf
 sed 's/{{NGINX_MAX_UPLOAD_SIZE}}/'"${NGINX_MAX_UPLOAD_SIZE}"'/' -i /etc/nginx/conf.d/gitlab.conf
-sed 's/{{NGINX_X_FORWARDED_PROTO}}/'"${NGINX_X_FORWARDED_PROTO}"'/' -i /etc/nginx/conf.d/gitlab.conf
+sed 's/{{NGINX_X_FORWARDED_PROTO}}/'"${NGINX_X_FORWARDED_PROTO}"'/g' -i /etc/nginx/conf.d/gitlab.conf
 
 if [ "${GITLAB_HTTPS_HSTS_ENABLED}" == "true" ]; then
   sed 's/{{GITLAB_HTTPS_HSTS_MAXAGE}}/'"${GITLAB_HTTPS_HSTS_MAXAGE}"'/' -i /etc/nginx/conf.d/gitlab.conf
@@ -626,6 +715,9 @@ else
   sudo -u git -H sed '/{{GITLAB_RELATIVE_URL_ROOT}}/d' -i config/unicorn.rb
 fi
 
+# fix permissions of secrets.yml
+chmod 0600 config/secrets.yml
+
 # fix permission and ownership of ${GITLAB_DATA_DIR}
 chmod 755 ${GITLAB_DATA_DIR}
 chown git:git ${GITLAB_DATA_DIR}
@@ -640,10 +732,14 @@ chown git:git ${GITLAB_DATA_DIR}/repositories/
 chmod ug+rwX,o-rwx ${GITLAB_DATA_DIR}/repositories/
 sudo -u git -H chmod g+s ${GITLAB_DATA_DIR}/repositories/
 
-# create the satellites directory and make sure it has the right permissions
-sudo -u git -H mkdir -p ${GITLAB_DATA_DIR}/gitlab-satellites/
-chmod u+rwx,g=rx,o-rwx ${GITLAB_DATA_DIR}/gitlab-satellites
-chown git:git ${GITLAB_DATA_DIR}/gitlab-satellites
+# create build traces directory
+mkdir -p ${GITLAB_BUILDS_DIR}
+chmod u+rwX ${GITLAB_BUILDS_DIR}
+chown git:git ${GITLAB_BUILDS_DIR}
+
+# symlink builds/ -> ${GITLAB_BUILDS_DIR}
+rm -rf builds
+ln -sf ${GITLAB_BUILDS_DIR} builds
 
 # remove old cache directory (remove this line after a few releases)
 rm -rf ${GITLAB_DATA_DIR}/cache
@@ -773,10 +869,10 @@ appSanitize () {
   find ${GITLAB_DATA_DIR}/repositories/ -type d -print0 | xargs -0 chmod g+s
   chown -R git:git ${GITLAB_DATA_DIR}/repositories
 
-  echo "Checking satellites directories permissions..."
-  sudo -u git -H mkdir -p ${GITLAB_DATA_DIR}/gitlab-satellites/
-  chmod u+rwx,g=rx,o-rwx ${GITLAB_DATA_DIR}/gitlab-satellites
-  chown -R git:git ${GITLAB_DATA_DIR}/gitlab-satellites
+  echo "Checking builds directories permissions..."
+  sudo -u git -H mkdir -p ${GITLAB_BUILDS_DIR}
+  chmod u+rwx,g=rx,o-rwx ${GITLAB_BUILDS_DIR}
+  chown -R git:git ${GITLAB_BUILDS_DIR}
 
   echo "Checking uploads directory permissions..."
   chmod -R u+rwX ${GITLAB_DATA_DIR}/uploads/
@@ -835,7 +931,7 @@ appRake () {
 appHelp () {
   echo "Available options:"
   echo " app:start          - Starts the gitlab server (default)"
-  echo " app:sanitize       - Fix repository/satellites directory permissions."
+  echo " app:sanitize       - Fix repository/builds directory permissions."
   echo " app:rake <task>    - Execute a rake task."
   echo " app:help           - Displays the help"
   echo " [command]          - Execute the specified linux command eg. bash."
